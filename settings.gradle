@@ -1,0 +1,5 @@
+rootProject.name = 'vertx-spring-boot'
+
+include ':sample'
+include ':vertx-spring-boot-starter'
+include ':vertx-spring-boot-autoconfigure'
