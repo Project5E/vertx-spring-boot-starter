@@ -1,6 +1,6 @@
 package com.project5e.vertx.sample.service;
 
-import com.project5e.vertx.autoconfigure.VertxProperties;
+import com.project5e.vertx.core.autoconfigure.VertxProperties;
 import com.project5e.vertx.core.annotation.VertxService;
 import com.project5e.vertx.sample.verticle.NumberVerticle;
 import lombok.extern.slf4j.Slf4j;

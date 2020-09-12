@@ -1,8 +1,7 @@
-package com.project5e.vertx.autoconfigure;
+package com.project5e.vertx.core.autoconfigure;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 
 @Data
 @ConfigurationProperties(prefix = VertxProperties.PREFIX)

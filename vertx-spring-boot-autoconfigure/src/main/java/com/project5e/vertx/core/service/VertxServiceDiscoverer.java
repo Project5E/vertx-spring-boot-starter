@@ -4,6 +4,8 @@ import java.util.Collection;
 
 public interface VertxServiceDiscoverer {
 
+    Collection<VerticleDefinition> findVerticles();
+
     Collection<VertxServiceDefinition> findVertxServices();
 
 }

@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.project5e.vertx.autoconfigure.VertxAutoConfiguration
+com.project5e.vertx.core.autoconfigure.VertxAutoConfiguration
