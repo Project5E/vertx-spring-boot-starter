@@ -6,6 +6,4 @@ public interface VerticleDiscoverer {
 
     Collection<VerticleDefinition> findVerticles();
 
-//    Collection<VertxServiceDefinition> findVertxServices();
-
 }

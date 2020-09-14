@@ -13,10 +13,10 @@ public @interface VertxService {
 
 
     @AliasFor("address")
-    String value();
+    String value() default "";
 
     @AliasFor("value")
-    String address();
+    String address() default "";
 
     Class<?> register();
 

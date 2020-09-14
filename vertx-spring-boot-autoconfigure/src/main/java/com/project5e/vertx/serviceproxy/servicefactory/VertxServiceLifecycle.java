@@ -9,7 +9,8 @@ import java.util.Collection;
 
 public class VertxServiceLifecycle implements SmartLifecycle {
 
-    private volatile Vertx vertx;
+    private boolean running;
+    private final Vertx vertx;
     private final VertxServiceDiscoverer discoverer;
 
     public VertxServiceLifecycle(Vertx vertx, VertxServiceDiscoverer discoverer) {
@@ -21,20 +22,22 @@ public class VertxServiceLifecycle implements SmartLifecycle {
     public void start() {
         Collection<VertxServiceDefinition> serviceDefinitions = discoverer.findVertxServices();
         registerVertxService(serviceDefinitions);
+        running = true;
     }
 
     @Override
     public void stop() {
-        vertx = null;
+        vertx.close().onComplete(event -> running = false);
     }
 
     @Override
     public boolean isRunning() {
-        return vertx != null;
+        return running;
     }
 
     private void registerVertxService(Collection<VertxServiceDefinition> serviceDefinitions) {
         for (VertxServiceDefinition definition : serviceDefinitions) {
+            definition.getVerticle();
 //            vertx.deployVerticle(definition.getVerticle()).result();
         }
     }
