@@ -1,7 +1,6 @@
 package com.project5e.vertx.core.service;
 
 import com.project5e.vertx.core.annotation.Verticle;
-import com.project5e.vertx.core.annotation.VertxService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
@@ -10,7 +9,7 @@ import org.springframework.context.ApplicationContextAware;
 import java.util.*;
 
 @Slf4j
-public class AnnotationVertxServiceDiscoverer implements ApplicationContextAware, VertxServiceDiscoverer {
+public class AnnotationVerticleDiscoverer implements ApplicationContextAware, VerticleDiscoverer {
 
     private ApplicationContext applicationContext;
 
@@ -35,16 +34,16 @@ public class AnnotationVertxServiceDiscoverer implements ApplicationContextAware
         return definitions;
     }
 
-    @Override
-    public Collection<VertxServiceDefinition> findVertxServices() {
-        Collection<String> beanNames = Arrays.asList(applicationContext.getBeanNamesForAnnotation(VertxService.class));
-        List<VertxServiceDefinition> definitions = new ArrayList<>(beanNames.size());
-        for (String beanName : beanNames) {
-            Object vertxService = applicationContext.getBean(beanName);
-            VertxService vertxServiceAnnotation = applicationContext.findAnnotationOnBean(beanName, VertxService.class);
-            log.info(vertxService.getClass().getSimpleName() + ", " + vertxServiceAnnotation.value());
-        }
-        return definitions;
-    }
+//    @Override
+//    public Collection<VertxServiceDefinition> findVertxServices() {
+//        Collection<String> beanNames = Arrays.asList(applicationContext.getBeanNamesForAnnotation(VertxService.class));
+//        List<VertxServiceDefinition> definitions = new ArrayList<>(beanNames.size());
+//        for (String beanName : beanNames) {
+//            Object vertxService = applicationContext.getBean(beanName);
+//            VertxService vertxServiceAnnotation = applicationContext.findAnnotationOnBean(beanName, VertxService.class);
+//            log.info(vertxService.getClass().getSimpleName() + ", " + vertxServiceAnnotation.value());
+//        }
+//        return definitions;
+//    }
 
 }

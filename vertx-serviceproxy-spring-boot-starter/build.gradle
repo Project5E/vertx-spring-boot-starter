@@ -1,0 +1,10 @@
+version = '0.0.1-SNAPSHOT'
+
+bootJar {
+    enabled = false
+}
+
+dependencies {
+    api project(":vertx-spring-boot-autoconfigure")
+    api project(":vertx-spring-boot-starter")
+}

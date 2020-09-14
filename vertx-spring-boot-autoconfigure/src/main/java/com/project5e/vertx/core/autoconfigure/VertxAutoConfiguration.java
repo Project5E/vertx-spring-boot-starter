@@ -1,9 +1,10 @@
 package com.project5e.vertx.core.autoconfigure;
 
-import com.project5e.vertx.core.service.AnnotationVertxServiceDiscoverer;
-import com.project5e.vertx.core.service.VertxServiceDiscoverer;
+import com.project5e.vertx.core.service.AnnotationVerticleDiscoverer;
+import com.project5e.vertx.core.service.VerticleDiscoverer;
 import com.project5e.vertx.core.servicefactory.VertxLifecycle;
 import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -20,15 +21,23 @@ public class VertxAutoConfiguration {
 
     @ConditionalOnMissingBean
     @Bean
-    public VertxServiceDiscoverer defaultVertxServiceDiscoverer() {
-        return new AnnotationVertxServiceDiscoverer();
+    public VerticleDiscoverer defaultVerticleDiscoverer() {
+        return new AnnotationVerticleDiscoverer();
     }
 
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VertxServiceDiscoverer.class)
     @Bean
-    public VertxLifecycle verticleLifecycle(final VertxProperties properties, VertxServiceDiscoverer discoverer) {
-        return new VertxLifecycle(properties, discoverer);
+    public Vertx defaultVertx(final VertxProperties properties) {
+        VertxOptions options = new VertxOptions();
+        options.setWorkerPoolSize(properties.getWorkerPoolSize());
+        return Vertx.vertx(options);
+    }
+
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({Vertx.class, VerticleDiscoverer.class})
+    @Bean
+    public VertxLifecycle vertxLifecycle(final Vertx vertx, final VerticleDiscoverer discoverer) {
+        return new VertxLifecycle(vertx, discoverer);
     }
 
 }

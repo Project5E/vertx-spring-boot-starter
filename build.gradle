@@ -51,7 +51,9 @@ subprojects {
         }
 
         // vertx
-        compile "io.vertx:vertx-core:$vertxVersion"
+        compileOnly "io.vertx:vertx-core:$vertxVersion"
+        compileOnly "io.vertx:vertx-service-proxy:$vertxVersion"
+
 
         // lombok
         compileOnly 'org.projectlombok:lombok'

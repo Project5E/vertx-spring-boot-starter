@@ -1,4 +1,4 @@
-package com.project5e.vertx.core.annotation;
+package com.project5e.vertx.serviceproxy.annotation;
 
 import org.springframework.core.annotation.AliasFor;
 import org.springframework.stereotype.Service;
@@ -12,8 +12,11 @@ import java.lang.annotation.*;
 public @interface VertxService {
 
 
-    @AliasFor(annotation = Service.class)
+    @AliasFor("address")
     String value();
+
+    @AliasFor("value")
+    String address();
 
     Class<?> register();
 
