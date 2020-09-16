@@ -1,5 +1,8 @@
 package com.project5e.vertx.core.autoconfigure;
 
+import com.project5e.vertx.core.aop.VerticleAnnotationAdvisor;
+import com.project5e.vertx.core.aop.VerticleAnnotationBeanPostProcessor;
+import com.project5e.vertx.core.aop.VerticleAnnotationInterceptor;
 import com.project5e.vertx.core.service.AnnotationVerticleDiscoverer;
 import com.project5e.vertx.core.service.VerticleDiscoverer;
 import com.project5e.vertx.core.servicefactory.VertxLifecycle;
@@ -14,7 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Slf4j
-@Configuration(proxyBeanMethods = false)
+@Configuration(proxyBeanMethods = true)
 @ConditionalOnClass(Vertx.class)
 @EnableConfigurationProperties(VertxProperties.class)
 public class VertxAutoConfiguration {
@@ -31,6 +34,19 @@ public class VertxAutoConfiguration {
         VertxOptions options = new VertxOptions();
         options.setWorkerPoolSize(properties.getWorkerPoolSize());
         return Vertx.vertx(options);
+    }
+
+//    @ConditionalOnMissingBean
+//    @Bean
+    public VerticleAnnotationAdvisor verticleAdvisor() {
+        VerticleAnnotationInterceptor interceptor = new VerticleAnnotationInterceptor();
+        return new VerticleAnnotationAdvisor(interceptor);
+    }
+
+    @ConditionalOnMissingBean
+    @Bean
+    public VerticleAnnotationBeanPostProcessor verticleAnnotationBeanPostProcessor() {
+        return new VerticleAnnotationBeanPostProcessor(verticleAdvisor());
     }
 
     @ConditionalOnMissingBean

@@ -21,6 +21,11 @@ public class NumberVerticle extends AbstractVerticle {
     }
 
     @Override
+    public void start() throws Exception {
+        super.start();
+    }
+
+    @Override
     public void stop(Promise<Void> stopPromise) throws Exception {
         log.info("stop");
         stopPromise.complete();
