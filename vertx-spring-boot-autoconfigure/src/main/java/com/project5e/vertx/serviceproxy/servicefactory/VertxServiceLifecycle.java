@@ -1,5 +1,6 @@
 package com.project5e.vertx.serviceproxy.servicefactory;
 
+import com.project5e.vertx.core.aop.BeforeStart;
 import com.project5e.vertx.serviceproxy.service.VertxServiceDefinition;
 import com.project5e.vertx.serviceproxy.service.VertxServiceDiscoverer;
 import io.vertx.core.Vertx;
@@ -7,7 +8,7 @@ import org.springframework.context.SmartLifecycle;
 
 import java.util.Collection;
 
-public class VertxServiceLifecycle implements SmartLifecycle {
+public class VertxServiceLifecycle implements SmartLifecycle{
 
     private boolean running;
     private final Vertx vertx;
@@ -38,7 +39,7 @@ public class VertxServiceLifecycle implements SmartLifecycle {
     private void registerVertxService(Collection<VertxServiceDefinition> serviceDefinitions) {
         for (VertxServiceDefinition definition : serviceDefinitions) {
             definition.getVerticle();
-//            vertx.deployVerticle(definition.getVerticle()).result();
+            vertx.deployVerticle(definition.getVerticle()).result();
         }
     }
 

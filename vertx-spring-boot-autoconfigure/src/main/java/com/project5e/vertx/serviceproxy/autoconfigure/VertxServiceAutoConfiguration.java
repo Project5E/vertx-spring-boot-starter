@@ -3,6 +3,7 @@ package com.project5e.vertx.serviceproxy.autoconfigure;
 import com.project5e.vertx.core.autoconfigure.VertxAutoConfiguration;
 import com.project5e.vertx.serviceproxy.service.AnnotationVertxServiceDiscoverer;
 import com.project5e.vertx.serviceproxy.service.VertxServiceDiscoverer;
+import com.project5e.vertx.serviceproxy.servicefactory.ServiceProxyRegister;
 import com.project5e.vertx.serviceproxy.servicefactory.VertxServiceLifecycle;
 import io.vertx.core.Vertx;
 import io.vertx.serviceproxy.ProxyHandler;
@@ -24,11 +25,18 @@ public class VertxServiceAutoConfiguration {
         return new AnnotationVertxServiceDiscoverer();
     }
 
+//    @ConditionalOnMissingBean
+//    @ConditionalOnBean({Vertx.class, VertxServiceDiscoverer.class})
+//    @Bean
+//    public VertxServiceLifecycle vertxServiceLifecycle(final Vertx vertx, final VertxServiceDiscoverer discoverer) {
+//        return new VertxServiceLifecycle(vertx, discoverer);
+//    }
+
     @ConditionalOnMissingBean
     @ConditionalOnBean({Vertx.class, VertxServiceDiscoverer.class})
     @Bean
-    public VertxServiceLifecycle vertxServiceLifecycle(final Vertx vertx, final VertxServiceDiscoverer discoverer) {
-        return new VertxServiceLifecycle(vertx, discoverer);
+    public ServiceProxyRegister serviceProxyRegister(final Vertx vertx, final VertxServiceDiscoverer discoverer) {
+        return new ServiceProxyRegister(vertx, discoverer);
     }
 
 }

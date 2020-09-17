@@ -14,4 +14,8 @@ public class VertxServiceDefinition {
 
     private Verticle verticle;
 
+    private Object service;
+
+    private Class<Object> serviceInterface;
+
 }

@@ -7,8 +7,10 @@ import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.AbstractPointcutAdvisor;
 import org.springframework.aop.support.ComposablePointcut;
+import org.springframework.aop.support.DynamicMethodMatcherPointcut;
 import org.springframework.aop.support.StaticMethodMatcherPointcut;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
+import org.springframework.core.Ordered;
 import org.springframework.util.ClassUtils;
 
 import java.lang.reflect.Method;
@@ -27,9 +29,9 @@ public class VerticleAnnotationAdvisor extends AbstractPointcutAdvisor {
         //类级别
         Pointcut cpc = new AnnotationMatchingPointcut(Verticle.class, true);
         //方法级别
-//        Pointcut mpc = new StaticMethodMatcherPointcut() {
+//        Pointcut mpc = new DynamicMethodMatcherPointcut() {
 //            @Override
-//            public boolean matches(Method method, Class<?> targetClass) {
+//            public boolean matches(Method method, Class<?> targetClass, Object... args) {
 //                return method == ClassUtils.getMethod(targetClass, "start", Promise.class);
 //            }
 //        };
@@ -49,4 +51,8 @@ public class VerticleAnnotationAdvisor extends AbstractPointcutAdvisor {
         return advice;
     }
 
+    @Override
+    public int getOrder() {
+        return Ordered.HIGHEST_PRECEDENCE;
+    }
 }

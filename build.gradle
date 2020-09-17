@@ -45,6 +45,7 @@ subprojects {
 
     dependencies {
         api 'org.springframework.boot:spring-boot-starter'
+        api 'org.springframework.boot:spring-boot-starter-aop'
         annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
         testImplementation('org.springframework.boot:spring-boot-starter-test') {
             exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
@@ -53,11 +54,16 @@ subprojects {
         // vertx
         compileOnly "io.vertx:vertx-core:$vertxVersion"
         compileOnly "io.vertx:vertx-service-proxy:$vertxVersion"
+        compileOnly "io.vertx:vertx-codegen:$vertxVersion:processor"
 
 
         // lombok
         compileOnly 'org.projectlombok:lombok'
         annotationProcessor 'org.projectlombok:lombok'
+
+        // utils
+        implementation 'org.apache.commons:commons-lang3:3.9'
+        implementation 'org.apache.commons:commons-collections4:4.4'
     }
 
     test {

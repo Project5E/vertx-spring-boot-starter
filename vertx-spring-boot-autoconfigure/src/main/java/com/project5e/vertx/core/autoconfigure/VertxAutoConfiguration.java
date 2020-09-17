@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Slf4j
-@Configuration(proxyBeanMethods = true)
+@Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(Vertx.class)
 @EnableConfigurationProperties(VertxProperties.class)
 public class VertxAutoConfiguration {
@@ -36,17 +36,17 @@ public class VertxAutoConfiguration {
         return Vertx.vertx(options);
     }
 
-//    @ConditionalOnMissingBean
-//    @Bean
-    public VerticleAnnotationAdvisor verticleAdvisor() {
-        VerticleAnnotationInterceptor interceptor = new VerticleAnnotationInterceptor();
-        return new VerticleAnnotationAdvisor(interceptor);
+    @ConditionalOnMissingBean
+    @Bean
+    public VerticleAnnotationInterceptor verticleAnnotationInterceptor() {
+        return new VerticleAnnotationInterceptor();
     }
 
     @ConditionalOnMissingBean
+    @ConditionalOnBean(VerticleAnnotationInterceptor.class)
     @Bean
-    public VerticleAnnotationBeanPostProcessor verticleAnnotationBeanPostProcessor() {
-        return new VerticleAnnotationBeanPostProcessor(verticleAdvisor());
+    public VerticleAnnotationBeanPostProcessor verticleAnnotationBeanPostProcessor(VerticleAnnotationInterceptor interceptor) {
+        return new VerticleAnnotationBeanPostProcessor(new VerticleAnnotationAdvisor(interceptor));
     }
 
     @ConditionalOnMissingBean
