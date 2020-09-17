@@ -1,6 +1,6 @@
 package com.project5e.vertx.serviceproxy.service;
 
-import io.vertx.core.Verticle;
+import com.project5e.vertx.core.service.VerticleDefinition;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,12 +10,23 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class VertxServiceDefinition {
 
-    private String address;
+    private String beanName;
 
-    private Verticle verticle;
-
+    /**
+     * service bean 对象
+     */
     private Object service;
 
+    private String address;
+
+    /**
+     * service 实现的 @ProxyGen 接口
+     */
     private Class<Object> serviceInterface;
+
+    /**
+     * 关联的 VerticleDefinition
+     */
+    private VerticleDefinition verticleDefinition;
 
 }

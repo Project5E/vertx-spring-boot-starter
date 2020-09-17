@@ -1,10 +1,11 @@
 package com.project5e.vertx.serviceproxy.autoconfigure;
 
 import com.project5e.vertx.core.autoconfigure.VertxAutoConfiguration;
+import com.project5e.vertx.core.service.VerticleDiscoverer;
 import com.project5e.vertx.serviceproxy.service.AnnotationVertxServiceDiscoverer;
+import com.project5e.vertx.serviceproxy.service.VertxServiceBeanDefinitionRegistryPostProcessor;
 import com.project5e.vertx.serviceproxy.service.VertxServiceDiscoverer;
 import com.project5e.vertx.serviceproxy.servicefactory.ServiceProxyRegister;
-import com.project5e.vertx.serviceproxy.servicefactory.VertxServiceLifecycle;
 import io.vertx.core.Vertx;
 import io.vertx.serviceproxy.ProxyHandler;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -20,9 +21,20 @@ import org.springframework.context.annotation.Configuration;
 public class VertxServiceAutoConfiguration {
 
     @ConditionalOnMissingBean
+    @ConditionalOnBean(VerticleDiscoverer.class)
     @Bean
-    public VertxServiceDiscoverer defaultVertxServiceDiscoverer() {
-        return new AnnotationVertxServiceDiscoverer();
+    public VertxServiceDiscoverer defaultVertxServiceDiscoverer(VerticleDiscoverer verticleDiscoverer) {
+        return new AnnotationVertxServiceDiscoverer(verticleDiscoverer.findVerticles());
+    }
+
+//    @ConditionalOnMissingBean
+//    @ConditionalOnBean({Vertx.class, VertxServiceDiscoverer.class})
+//    @Bean
+    public VertxServiceBeanDefinitionRegistryPostProcessor vertxServiceBeanDefinitionRegistryPostProcessor(
+            Vertx vertx,
+            VertxServiceDiscoverer discoverer
+    ) {
+        return new VertxServiceBeanDefinitionRegistryPostProcessor(vertx, discoverer);
     }
 
 //    @ConditionalOnMissingBean

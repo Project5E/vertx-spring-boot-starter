@@ -7,7 +7,7 @@ import io.vertx.core.Handler;
 
 @ProxyGen
 @VertxGen
-public interface NumberService {
+public interface IPlusService {
 
     void plus(Integer a, Integer b, Handler<AsyncResult<Integer>> resultHandler);
 

@@ -37,7 +37,7 @@ public class VertxLifecycle implements SmartLifecycle {
 
     private void createAndDeployVerticle(Collection<VerticleDefinition> verticleDefinitions) {
         for (VerticleDefinition definition : verticleDefinitions) {
-            vertx.deployVerticle(definition.getVerticle()).result();
+            vertx.deployVerticle(definition.getVerticleProxy()).result();
         }
     }
 

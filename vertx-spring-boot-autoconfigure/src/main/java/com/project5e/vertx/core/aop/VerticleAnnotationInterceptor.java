@@ -1,6 +1,7 @@
 package com.project5e.vertx.core.aop;
 
 import io.vertx.core.Promise;
+import io.vertx.core.Verticle;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
@@ -38,7 +39,7 @@ public class VerticleAnnotationInterceptor implements MethodInterceptor, Applica
             if (parameterTypes.length == 1 && parameterTypes[0].equals(Promise.class)) {
                 Map<String, BeforeStart> beansOfType = applicationContext.getBeansOfType(BeforeStart.class);
                 beansOfType.forEach((s, beforeStart) -> {
-                    beforeStart.doBeforeStart();
+                    beforeStart.doBeforeStart((Verticle) invocation.getThis());
                 });
             }
         }

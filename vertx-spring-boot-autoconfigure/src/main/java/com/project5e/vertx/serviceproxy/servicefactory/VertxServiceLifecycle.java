@@ -22,7 +22,6 @@ public class VertxServiceLifecycle implements SmartLifecycle{
     @Override
     public void start() {
         Collection<VertxServiceDefinition> serviceDefinitions = discoverer.findVertxServices();
-        registerVertxService(serviceDefinitions);
         running = true;
     }
 
@@ -34,13 +33,6 @@ public class VertxServiceLifecycle implements SmartLifecycle{
     @Override
     public boolean isRunning() {
         return running;
-    }
-
-    private void registerVertxService(Collection<VertxServiceDefinition> serviceDefinitions) {
-        for (VertxServiceDefinition definition : serviceDefinitions) {
-            definition.getVerticle();
-            vertx.deployVerticle(definition.getVerticle()).result();
-        }
     }
 
 }
