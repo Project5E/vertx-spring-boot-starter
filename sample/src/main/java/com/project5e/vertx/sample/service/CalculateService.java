@@ -9,28 +9,37 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.annotation.PostConstruct;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @VertxService(address = "calculate.bus", register = CalculateVerticle.class)
 public class CalculateService implements ICalculateService {
 
     @Autowired
-    PlusService plusService;
+    IPlusService iPlusService;
     @Autowired
-    SubtractService subtractService;
+    ISubtractService iSubtractService;
 
     @PostConstruct
     public void init() {
         log.info(this.getClass().getTypeName() + " init!");
+        new Thread(() -> {
+            try {
+                TimeUnit.SECONDS.sleep(3);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            plus(1, 2, event -> log.info("res = " + event.result()));
+        }).start();
     }
 
     @Override
     public void plus(Integer a, Integer b, Handler<AsyncResult<Integer>> resultHandler) {
-        plusService.plus(a, b, resultHandler);
+        iPlusService.plus(a, b, resultHandler);
     }
 
     @Override
     public void subtract(Integer a, Integer b, Handler<AsyncResult<Integer>> resultHandler) {
-        subtractService.subtract(a, b, resultHandler);
+        iSubtractService.subtract(a, b, resultHandler);
     }
 }
