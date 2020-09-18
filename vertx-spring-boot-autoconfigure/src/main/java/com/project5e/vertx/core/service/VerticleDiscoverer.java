@@ -1,9 +1,9 @@
 package com.project5e.vertx.core.service;
 
-import java.util.Collection;
+import java.util.List;
 
 public interface VerticleDiscoverer {
 
-    Collection<VerticleDefinition> findVerticles();
+    List<VerticleDefinition> findVerticles();
 
 }

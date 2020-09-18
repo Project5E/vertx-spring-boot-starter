@@ -6,10 +6,12 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
 
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
+@Order(1)
 @Verticle
 public class NumberVerticle extends AbstractVerticle {
 

@@ -1,13 +1,11 @@
 package com.project5e.vertx.sample.service;
 
 import com.project5e.vertx.sample.verticle.CalculateVerticle;
-import com.project5e.vertx.sample.verticle.NumberVerticle;
 import com.project5e.vertx.serviceproxy.annotation.VertxService;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 
 import javax.annotation.PostConstruct;
 import java.util.concurrent.TimeUnit;

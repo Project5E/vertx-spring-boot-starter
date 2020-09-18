@@ -2,6 +2,7 @@ package com.project5e.vertx.core.service;
 
 import io.vertx.core.Verticle;
 import lombok.Data;
+import org.springframework.core.Ordered;
 
 @Data
 public class VerticleDefinition {
@@ -25,5 +26,10 @@ public class VerticleDefinition {
      * verticle 目标类型
      */
     private Class<? extends Verticle> targetClass;
+
+    /**
+     * 启动顺序
+     */
+    private int order = Ordered.HIGHEST_PRECEDENCE;
 
 }

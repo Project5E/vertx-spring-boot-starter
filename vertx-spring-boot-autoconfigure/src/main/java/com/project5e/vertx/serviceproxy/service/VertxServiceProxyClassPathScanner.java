@@ -32,6 +32,7 @@ public class VertxServiceProxyClassPathScanner extends ClassPathBeanDefinitionSc
             String beanClassName = definition.getBeanClassName();
             Class<?> serviceClass = ClassUtils.getClass(beanClassName);
             VertxService vertxServiceAnnotation = AnnotationUtils.getAnnotation(serviceClass, VertxService.class);
+            assert vertxServiceAnnotation != null;
             Class<?> registerVerticleClass = vertxServiceAnnotation.register();
             String address = vertxServiceAnnotation.address();
             Class<?> proxyGenIService = findProxyGenIService(serviceClass);
@@ -49,6 +50,7 @@ public class VertxServiceProxyClassPathScanner extends ClassPathBeanDefinitionSc
     protected void registerBeanDefinition(BeanDefinitionHolder definitionHolder, BeanDefinitionRegistry registry) {
         BeanDefinition beanDefinition = definitionHolder.getBeanDefinition();
         String beanClassName = beanDefinition.getBeanClassName();
+        assert beanClassName != null;
         AbstractBeanDefinition newDefinition = BeanDefinitionBuilder
                 .genericBeanDefinition(beanClassName)
                 .addConstructorArgReference("vertx")

@@ -35,27 +35,30 @@ public class AnnotationVertxServiceDiscoverer implements ApplicationContextAware
     }
 
     @Override
-    public synchronized Collection<VertxServiceDefinition> findVertxServices() {
+    public synchronized List<VertxServiceDefinition> findVertxServices() {
         if (definitions == null) {
             Collection<String> beanNames = Arrays.asList(applicationContext.getBeanNamesForAnnotation(VertxService.class));
             definitions = new ArrayList<>(beanNames.size());
             for (String beanName : beanNames) {
                 Object vertxService = applicationContext.getBean(beanName);
-                Class<?> iface = ClassUtils.getAllInterfacesAsSet(vertxService).stream().filter(i -> {
-                    ProxyGen proxyGenAnnotation = AnnotationUtils.getAnnotation(i, ProxyGen.class);
-                    return proxyGenAnnotation != null;
-                }).findFirst().orElse(null);
+                Class<?> iface = ClassUtils.getAllInterfacesAsSet(vertxService).stream()
+                        .filter(i -> AnnotationUtils.getAnnotation(i, ProxyGen.class) != null)
+                        .findFirst().orElse(null);
                 if (iface == null) {
+                    log.warn("class [{}] does not implement any interface annotated by @ProxyGen", beanName);
                     continue;
                 }
                 VertxService vertxServiceAnnotation = applicationContext.findAnnotationOnBean(beanName, VertxService.class);
+                assert vertxServiceAnnotation != null;
                 if (StringUtils.isBlank(vertxServiceAnnotation.address())) {
+                    log.warn("class [{}] 's address is blank", beanName);
                     continue;
                 }
                 VerticleDefinition verticleDefinition = verticleDefinitions.stream().filter(definition ->
                         definition.getTargetClass() == vertxServiceAnnotation.register()
                 ).findFirst().orElse(null);
                 if (verticleDefinition == null) {
+                    log.warn("class [{}] 's verticle definition not found", beanName);
                     continue;
                 }
                 log.info("find service [{}], address [{}], verticle [{}]",
@@ -76,7 +79,7 @@ public class AnnotationVertxServiceDiscoverer implements ApplicationContextAware
     }
 
     @Override
-    public Collection<VertxServiceDefinition> findVertxServices(Verticle verticle) {
+    public List<VertxServiceDefinition> findVertxServices(Verticle verticle) {
         Collection<VertxServiceDefinition> vertxServices = findVertxServices();
         return vertxServices.stream()
                 .filter(definition -> definition.getVerticleDefinition().getVerticle().equals(verticle))

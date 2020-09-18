@@ -1,19 +1,13 @@
 package com.project5e.vertx.core.aop;
 
 import com.project5e.vertx.core.annotation.Verticle;
-import io.vertx.core.Promise;
 import org.aopalliance.aop.Advice;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.AbstractPointcutAdvisor;
 import org.springframework.aop.support.ComposablePointcut;
-import org.springframework.aop.support.DynamicMethodMatcherPointcut;
-import org.springframework.aop.support.StaticMethodMatcherPointcut;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
 import org.springframework.core.Ordered;
-import org.springframework.util.ClassUtils;
-
-import java.lang.reflect.Method;
 
 public class VerticleAnnotationAdvisor extends AbstractPointcutAdvisor {
 

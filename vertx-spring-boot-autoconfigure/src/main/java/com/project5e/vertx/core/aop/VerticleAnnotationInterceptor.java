@@ -33,6 +33,7 @@ public class VerticleAnnotationInterceptor implements MethodInterceptor, Applica
         Method specificMethod = ClassUtils.getMostSpecificMethod(invocation.getMethod(), targetClass);
         //获取真正执行的方法,可能存在桥接方法
         final Method declaredMethod = BridgeMethodResolver.findBridgedMethod(specificMethod);
+        // 判断是不是 start 方法
         if (declaredMethod.getName().equals("start")) {
             Class<?>[] parameterTypes = declaredMethod.getParameterTypes();
             if (parameterTypes.length == 1 && parameterTypes[0].equals(Promise.class)) {
@@ -40,8 +41,6 @@ public class VerticleAnnotationInterceptor implements MethodInterceptor, Applica
                 beansOfType.forEach((s, beforeStart) -> beforeStart.doBeforeStart((Verticle) invocation.getThis()));
             }
         }
-        //获取返回类型
-//        Class<?> returnType = invocation.getMethod().getReturnType();
         return invocation.proceed();
     }
 

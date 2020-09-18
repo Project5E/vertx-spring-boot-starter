@@ -30,6 +30,7 @@ public class VertxServiceBeanDefinitionRegistryPostProcessor implements BeanDefi
         scanner.addIncludeFilter(new RegexPatternTypeFilter(Pattern.compile(".*VertxEBProxy")));
         Map<String, Object> beanMap = applicationContext.getBeansWithAnnotation(SpringBootApplication.class);
         Class<?> appClass = beanMap.isEmpty() ? null : beanMap.values().toArray()[0].getClass();
+        assert appClass != null;
         String packageName = ClassUtils.getPackageName(appClass);
         scanner.scan(packageName);
     }

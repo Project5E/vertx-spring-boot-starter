@@ -33,7 +33,7 @@ public class PlusService implements IPlusService {
         resultHandler.handle(Future.succeededFuture(res));
     }
 
-    public String getName(){
+    public String getName() {
         return this.getClass().getTypeName();
     }
 

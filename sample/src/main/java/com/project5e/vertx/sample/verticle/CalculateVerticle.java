@@ -4,8 +4,10 @@ import com.project5e.vertx.core.annotation.Verticle;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
 
 @Slf4j
+@Order(2)
 @Verticle
 public class CalculateVerticle extends AbstractVerticle {
 
