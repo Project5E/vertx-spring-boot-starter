@@ -7,6 +7,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import javax.annotation.PostConstruct;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +16,8 @@ import java.util.concurrent.TimeUnit;
 @VertxService(address = "calculate.bus", register = CalculateVerticle.class)
 public class CalculateService implements ICalculateService {
 
+    @Autowired
+    PlusService plusService;
     @Autowired
     IPlusService iPlusService;
     @Autowired
@@ -29,12 +32,14 @@ public class CalculateService implements ICalculateService {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            plus(1, 2, event -> log.info("res = " + event.result()));
+            plus(1, 2, event -> log.info("plus res = " + event.result()));
+            subtract(1, 2, event -> log.info("subtract res = " + event.result()));
         }).start();
     }
 
     @Override
     public void plus(Integer a, Integer b, Handler<AsyncResult<Integer>> resultHandler) {
+        log.info("plus" + plusService.getName());
         iPlusService.plus(a, b, resultHandler);
     }
 

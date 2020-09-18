@@ -6,6 +6,7 @@ import com.project5e.vertx.serviceproxy.annotation.VertxService;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -15,6 +16,8 @@ import javax.annotation.PostConstruct;
 @VertxService(address = "plus.bus", register = NumberVerticle.class)
 public class PlusService implements IPlusService {
 
+    @Autowired
+    Vertx vertx;
     @Autowired
     VertxProperties vertxProperties;
 
@@ -29,4 +32,9 @@ public class PlusService implements IPlusService {
         log.info("plus result = {}", res);
         resultHandler.handle(Future.succeededFuture(res));
     }
+
+    public String getName(){
+        return this.getClass().getTypeName();
+    }
+
 }

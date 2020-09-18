@@ -37,9 +37,7 @@ public class VerticleAnnotationInterceptor implements MethodInterceptor, Applica
             Class<?>[] parameterTypes = declaredMethod.getParameterTypes();
             if (parameterTypes.length == 1 && parameterTypes[0].equals(Promise.class)) {
                 Map<String, BeforeStart> beansOfType = applicationContext.getBeansOfType(BeforeStart.class);
-                beansOfType.forEach((s, beforeStart) -> {
-                    beforeStart.doBeforeStart((Verticle) invocation.getThis());
-                });
+                beansOfType.forEach((s, beforeStart) -> beforeStart.doBeforeStart((Verticle) invocation.getThis()));
             }
         }
         //获取返回类型

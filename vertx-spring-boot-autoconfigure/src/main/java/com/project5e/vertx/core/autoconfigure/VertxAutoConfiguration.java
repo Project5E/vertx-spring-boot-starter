@@ -24,16 +24,16 @@ public class VertxAutoConfiguration {
 
     @ConditionalOnMissingBean
     @Bean
-    public VerticleDiscoverer defaultVerticleDiscoverer() {
-        return new AnnotationVerticleDiscoverer();
+    public Vertx vertx(final VertxProperties properties) {
+        VertxOptions options = new VertxOptions();
+        options.setWorkerPoolSize(properties.getWorkerPoolSize());
+        return Vertx.vertx(options);
     }
 
     @ConditionalOnMissingBean
     @Bean
-    public Vertx defaultVertx(final VertxProperties properties) {
-        VertxOptions options = new VertxOptions();
-        options.setWorkerPoolSize(properties.getWorkerPoolSize());
-        return Vertx.vertx(options);
+    public VerticleDiscoverer verticleDiscoverer() {
+        return new AnnotationVerticleDiscoverer();
     }
 
     @ConditionalOnMissingBean
@@ -45,7 +45,7 @@ public class VertxAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean(VerticleAnnotationInterceptor.class)
     @Bean
-    public VerticleAnnotationBeanPostProcessor verticleAnnotationBeanPostProcessor(VerticleAnnotationInterceptor interceptor) {
+    public VerticleAnnotationBeanPostProcessor verticleAnnotationBeanPostProcessor(final VerticleAnnotationInterceptor interceptor) {
         return new VerticleAnnotationBeanPostProcessor(new VerticleAnnotationAdvisor(interceptor));
     }
 
