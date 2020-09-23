@@ -8,6 +8,8 @@ import com.project5e.vertx.core.service.VerticleDiscoverer;
 import com.project5e.vertx.core.servicefactory.VertxLifecycle;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import io.vertx.core.metrics.MetricsOptions;
+import io.vertx.core.tracing.TracingOptions;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -15,6 +17,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Configuration(proxyBeanMethods = false)
@@ -26,7 +30,46 @@ public class VertxAutoConfiguration {
     @Bean
     public Vertx vertx(final VertxProperties properties) {
         VertxOptions options = new VertxOptions();
-        options.setWorkerPoolSize(properties.getWorkerPoolSize());
+        if (properties.getEventLoopPoolSize() != null) {
+            options.setEventLoopPoolSize(properties.getEventLoopPoolSize());
+        }
+        if (properties.getBlockedThreadCheckInterval() != null) {
+            options.setBlockedThreadCheckInterval(properties.getBlockedThreadCheckInterval().getSeconds());
+            options.setBlockedThreadCheckIntervalUnit(TimeUnit.SECONDS);
+        }
+        if (properties.getMaxEventLoopExecuteTime() != null) {
+            options.setMaxEventLoopExecuteTime(properties.getMaxEventLoopExecuteTime().getSeconds());
+            options.setMaxEventLoopExecuteTimeUnit(TimeUnit.SECONDS);
+        }
+        if (properties.getMaxWorkerExecuteTime() != null) {
+            options.setMaxWorkerExecuteTime(properties.getMaxWorkerExecuteTime().getSeconds());
+            options.setMaxWorkerExecuteTimeUnit(TimeUnit.SECONDS);
+        }
+        VertxProperties.Metrics metrics = properties.getMetrics();
+        if (metrics != null) {
+            MetricsOptions metricsOptions = new MetricsOptions();
+            if (metrics.getEnable() != null) {
+                metricsOptions.setEnabled(metrics.getEnable());
+            }
+            options.setMetricsOptions(metricsOptions);
+        }
+        if (properties.getPreferNativeTransport() != null) {
+            options.setPreferNativeTransport(properties.getPreferNativeTransport());
+        }
+        if (properties.getQuorumSize() != null) {
+            options.setQuorumSize(properties.getQuorumSize());
+        }
+        if (properties.getWorkerPoolSize() != null) {
+            options.setWorkerPoolSize(properties.getWorkerPoolSize());
+        }
+        VertxProperties.Tracing tracing = properties.getTracing();
+        if (tracing != null) {
+            TracingOptions tracingOptions = new TracingOptions();
+            if (tracing.getEnable() != null) {
+                tracingOptions.setEnabled(tracing.getEnable());
+            }
+            options.setTracingOptions(tracingOptions);
+        }
         return Vertx.vertx(options);
     }
 
