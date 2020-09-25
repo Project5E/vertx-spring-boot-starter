@@ -1,3 +1,16 @@
+buildscript {
+    repositories {
+        maven {
+            url 'https://plugins.gradle.org/m2/'
+        }
+    }
+    ext {
+        projectVersion = '0.1.0.RELEASE'
+        vertxVersion = '4.0.0-milestone4'
+        springBootVersion = '2.3.3.RELEASE'
+    }
+}
+
 plugins {
     id 'java'
     id 'java-library'
@@ -5,8 +18,6 @@ plugins {
     id 'org.springframework.boot' version '2.3.3.RELEASE' apply false
     id 'io.spring.dependency-management' version '1.0.10.RELEASE' apply false
 }
-
-def vertxVersion = '4.0.0-milestone4'
 
 repositories {
     maven { url "https://maven.aliyun.com/repository/public" }
@@ -17,8 +28,9 @@ repositories {
 }
 
 group = 'com.project5e'
+version = projectVersion
 
-subprojects {
+allprojects { project ->
 
     apply plugin: "java"
     apply plugin: "idea"
@@ -27,7 +39,13 @@ subprojects {
     apply plugin: "io.spring.dependency-management"
 
     group = 'com.project5e'
-    sourceCompatibility = '1.8'
+    version = projectVersion
+
+    compileJava {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+        options.encoding = 'UTF-8'
+    }
 
     configurations {
         compileOnly {

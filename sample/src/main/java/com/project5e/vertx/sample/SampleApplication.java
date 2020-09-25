@@ -14,16 +14,4 @@ public class SampleApplication {
         log.info("main done");
     }
 
-//    @Primary
-//    @Bean("iSubtractServiceVertxEBProxy")
-//    public ISubtractService iSubtractService(Vertx vertx){
-//        return new ISubtractServiceVertxEBProxy(vertx, SubtractService.class.getAnnotation(VertxService.class).address());
-//    }
-//
-//    @Primary
-//    @Bean("iPlusServiceVertxEBProxy")
-//    public IPlusService iPlusService(Vertx vertx){
-//        return new IPlusServiceVertxEBProxy(vertx, PlusService.class.getAnnotation(VertxService.class).address());
-//    }
-
 }
