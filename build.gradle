@@ -28,7 +28,7 @@ repositories {
     mavenCentral()
 }
 
-group = 'com.project5e'
+group = 'com.github.Project5E'
 version = projectVersion
 
 allprojects { project ->
@@ -40,7 +40,7 @@ allprojects { project ->
     apply plugin: "io.spring.dependency-management"
     apply plugin: 'maven'
 
-    group = 'com.project5e'
+    group = 'com.github.Project5E'
     version = projectVersion
 
     compileJava {
