@@ -66,7 +66,7 @@ subprojects { project ->
 
     dependencies {
         api 'org.springframework.boot:spring-boot-starter'
-        api 'org.springframework.boot:spring-boot-starter-aop'
+//        api 'org.springframework.boot:spring-boot-starter-aop'
         annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
         testImplementation('org.springframework.boot:spring-boot-starter-test') {
             exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
