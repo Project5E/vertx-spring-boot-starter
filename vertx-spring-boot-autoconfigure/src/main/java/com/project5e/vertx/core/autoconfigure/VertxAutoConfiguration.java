@@ -62,14 +62,6 @@ public class VertxAutoConfiguration {
         if (properties.getWorkerPoolSize() != null) {
             options.setWorkerPoolSize(properties.getWorkerPoolSize());
         }
-        VertxProperties.Tracing tracing = properties.getTracing();
-        if (tracing != null) {
-            TracingOptions tracingOptions = new TracingOptions();
-            if (tracing.getEnable() != null) {
-                tracingOptions.setEnabled(tracing.getEnable());
-            }
-            options.setTracingOptions(tracingOptions);
-        }
         return Vertx.vertx(options);
     }
 

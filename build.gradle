@@ -6,7 +6,7 @@ buildscript {
     }
     ext {
         projectVersion = '0.1.0.RELEASE'
-        vertxVersion = '4.0.0-milestone4'
+        vertxVersion = '4.0.0.Beta3'
         springBootVersion = '2.3.3.RELEASE'
     }
 }
@@ -76,6 +76,7 @@ subprojects { project ->
         compileOnly "io.vertx:vertx-core:$vertxVersion"
         compileOnly "io.vertx:vertx-service-proxy:$vertxVersion"
         compileOnly "io.vertx:vertx-codegen:$vertxVersion:processor"
+        compileOnly "io.vertx:vertx-pg-client:$vertxVersion"
 
 
         // lombok

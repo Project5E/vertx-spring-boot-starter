@@ -33,17 +33,8 @@ public class VertxProperties {
 
     private Integer workerPoolSize;
 
-    private Tracing tracing;
-
     @Data
     public static class Metrics {
-
-        private Boolean enable;
-
-    }
-
-    @Data
-    public static class Tracing {
 
         private Boolean enable;
 
