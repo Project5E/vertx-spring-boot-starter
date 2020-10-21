@@ -8,7 +8,6 @@ import com.project5e.vertx.web.exception.EmptyPathsException;
 import com.project5e.vertx.web.exception.IllegalPathException;
 import com.project5e.vertx.web.exception.NewInstanceException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.RegExUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
@@ -39,39 +38,44 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
             .stream().map(Object::getClass).collect(Collectors.toSet());
 
         for (Class<?> clz : classes) {
-            Router routerAnnotation = AnnotationUtil.getAnnotation(clz, Router.class);
-            String parentPath = handlePath(routerAnnotation.value());
+            RequestMapping requestMappingAnnotation = AnnotationUtil.getAnnotation(clz, RequestMapping.class);
+            String[] rawParentPaths =
+                requestMappingAnnotation != null ? requestMappingAnnotation.value() : new String[]{"/"};
+            for (String rawParentPath : rawParentPaths) {
+                String parentPath = handlePath(rawParentPath);
 
-            Method[] methods = ClassUtil.getPublicMethods(clz);
-            Object routeInstance;
-            try {
-                routeInstance = clz.newInstance();
-            } catch (Exception e) {
-                throw new NewInstanceException(e);
-            }
-            RouterDescriptor routerDescriptor = new RouterDescriptor(clz, routeInstance);
-            result.addRouterDescriptor(routerDescriptor);
-
-            for (Method method : methods) {
-                String[] value = getValues(method);
-                if (value == null) continue;
-                io.vertx.core.http.HttpMethod[] httpMethods = getHttpMethods(method);
-                String[] paths = Arrays.stream(value)
-                    .map(s -> this.handlePath(parentPath + s))
-                    .distinct()
-                    .toArray(String[]::new);
-                if (paths.length == 0) {
-                    throw new EmptyPathsException();
+                Method[] methods = ClassUtil.getPublicMethods(clz);
+                Object routeInstance;
+                try {
+                    routeInstance = clz.newInstance();
+                } catch (Exception e) {
+                    throw new NewInstanceException(e);
                 }
-                if (httpMethods.length == 0) {
-                    throw new EmptyMethodsException();
-                }
+                RouterDescriptor routerDescriptor = new RouterDescriptor(clz, routeInstance);
+                result.addRouterDescriptor(routerDescriptor);
 
-                MethodDescriptor methodDescriptor = new MethodDescriptor(routerDescriptor);
-                methodDescriptor.setPaths(paths);
-                methodDescriptor.setHttpMethods(httpMethods);
-                methodDescriptor.setMethod(method);
-                routerDescriptor.addMethodDescriptor(methodDescriptor);
+                for (Method method : methods) {
+                    String[] value = getValues(method);
+                    if (value == null) continue;
+                    HttpMethod[] httpMethod = getHttpMethods(method);
+                    String[] paths = Arrays.stream(value)
+                        .map(s -> this.handlePath(parentPath + s))
+                        .distinct()
+                        .toArray(String[]::new);
+                    if (paths.length == 0) {
+                        throw new EmptyPathsException();
+                    }
+                    HttpMethod[] httpMethods = Arrays.stream(httpMethod).distinct().toArray(HttpMethod[]::new);
+                    if (httpMethods.length == 0) {
+                        throw new EmptyMethodsException();
+                    }
+
+                    MethodDescriptor methodDescriptor = new MethodDescriptor(routerDescriptor);
+                    methodDescriptor.setPaths(paths);
+                    methodDescriptor.setHttpMethods(httpMethods);
+                    methodDescriptor.setMethod(method);
+                    routerDescriptor.addMethodDescriptor(methodDescriptor);
+                }
             }
         }
 
@@ -99,7 +103,7 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
         return value;
     }
 
-    private io.vertx.core.http.HttpMethod[] getHttpMethods(Method method) {
+    private HttpMethod[] getHttpMethods(Method method) {
         String name = "method";
         HttpMethod[] value = AnnotationUtil.getAnnotationValue(method, GetMapping.class, name);
         if (value == null) {
@@ -117,10 +121,7 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
         if (value == null) {
             value = AnnotationUtil.getAnnotationValue(method, RequestMapping.class, name);
         }
-
-        return Arrays.stream(value).distinct()
-            .map(item -> io.vertx.core.http.HttpMethod.valueOf(item.name()))
-            .toArray(io.vertx.core.http.HttpMethod[]::new);
+        return value;
     }
 
     private String handlePath(String path) {
@@ -128,7 +129,7 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
         if (StringUtils.isBlank(path) || !path.startsWith("/")) {
             throw new IllegalPathException();
         }
-        path = RegExUtils.replaceAll(path, "[/]+", "/");
+        path = StringUtils.replaceAll(path, "[/]+", "/");
         if (path.length() > 1) {
             path = StringUtils.stripEnd(path, "/");
         }

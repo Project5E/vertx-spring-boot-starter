@@ -1,5 +1,6 @@
 package com.project5e.vertx.web.annotation;
 
+import org.springframework.core.annotation.AliasFor;
 import org.springframework.stereotype.Component;
 
 import java.lang.annotation.*;
@@ -14,8 +15,7 @@ import java.lang.annotation.*;
 @Component
 public @interface Router {
 
-    String name() default "";
-
-    String value() default "/";
+    @AliasFor(annotation = Component.class)
+    String value() default "";
 
 }

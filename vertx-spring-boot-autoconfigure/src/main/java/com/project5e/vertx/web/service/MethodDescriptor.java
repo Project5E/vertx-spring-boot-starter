@@ -1,6 +1,6 @@
 package com.project5e.vertx.web.service;
 
-import io.vertx.core.http.HttpMethod;
+import com.project5e.vertx.web.annotation.HttpMethod;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;

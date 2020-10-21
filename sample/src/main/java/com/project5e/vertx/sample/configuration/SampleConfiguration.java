@@ -33,7 +33,7 @@ public class SampleConfiguration {
         );
         vertxSwaggerDefinition.setServers(Arrays.asList(
             new Server().url("https://apitest.hulaplanet.com/22p").description("测试服"),
-            new Server().url("http://localhost:17655").description("本地服务")
+            new Server().url("http://localhost:8088").description("本地服务")
         ));
         vertxSwaggerDefinition.setTags(Arrays.asList(
             new Tag().name("ttp").description("亲子内容相关信息接口"),

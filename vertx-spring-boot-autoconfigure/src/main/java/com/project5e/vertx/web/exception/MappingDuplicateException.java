@@ -1,6 +1,6 @@
 package com.project5e.vertx.web.exception;
 
-import io.vertx.core.http.HttpMethod;
+import com.project5e.vertx.web.annotation.HttpMethod;
 
 public class MappingDuplicateException extends RuntimeException {
 

@@ -3,17 +3,13 @@ package com.project5e.vertx.web.service;
 import cn.hutool.core.util.ClassUtil;
 import cn.hutool.core.util.TypeUtil;
 import cn.hutool.http.ContentType;
-import com.project5e.vertx.web.annotation.PathVariable;
-import com.project5e.vertx.web.annotation.RequestBody;
-import com.project5e.vertx.web.annotation.RequestHeader;
-import com.project5e.vertx.web.annotation.RequestParam;
+import com.project5e.vertx.web.annotation.*;
 import com.project5e.vertx.web.exception.AnnotationEmptyValueException;
 import com.project5e.vertx.web.exception.MappingDuplicateException;
 import com.project5e.vertx.web.exception.ReturnTypeWrongException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
@@ -54,14 +50,16 @@ public class HttpRouterGenerator {
             for (MethodDescriptor methodDescriptor : routerDescriptor.getMethodDescriptors()) {
                 for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
                     for (String path : methodDescriptor.getPaths()) {
-                        router.route(httpMethod, path).handler(BodyHandler.create()).handler(ctx -> {
-                            try {
-                                handleRequest(methodDescriptor, ctx);
-                            } catch (Exception e) {
-                                handleError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
-                                e.printStackTrace();
-                            }
-                        });
+                        router.route(io.vertx.core.http.HttpMethod.valueOf(httpMethod.name()), path)
+                            .handler(BodyHandler.create())
+                            .handler(ctx -> {
+                                try {
+                                    handleRequest(methodDescriptor, ctx);
+                                } catch (Exception e) {
+                                    handleError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+                                    e.printStackTrace();
+                                }
+                            });
                         Set<String> pathSet = existsPathMap.get(httpMethod);
                         if (pathSet.contains(path)) {
                             throw new MappingDuplicateException(httpMethod, path);
