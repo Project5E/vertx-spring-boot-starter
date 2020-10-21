@@ -30,10 +30,9 @@ import io.vertx.core.http.HttpMethod;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import javax.validation.constraints.*;
+import java.lang.reflect.*;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -262,6 +261,7 @@ public class VertxSwaggerReader {
                     .schema(schema)
                     .required(pathVariable.required()));
             }
+            fillSchemaWithValidation(schema, parameter);
         }
         return parameters;
     }
@@ -392,11 +392,55 @@ public class VertxSwaggerReader {
             schema = new ObjectSchema();
             Field[] fields = wrapType.getDeclaredFields();
             for (Field field : fields) {
-                schema.addProperties(field.getName(), getSchema(field.getType()));
+                Schema<?> fieldSchema = getSchema(field.getType());
+                schema.addProperties(field.getName(), fieldSchema);
+                if (field.getAnnotation(NotNull.class) != null) {
+                    schema.addRequiredItem(field.getName());
+                }
+                fillSchemaWithValidation(fieldSchema, field);
             }
-//            openAPI.getComponents().addSchemas(wrapType.getSimpleName(), schema);
         }
         return schema;
+    }
+
+    protected void fillSchemaWithValidation(Schema<?> schema, AnnotatedElement element) {
+        NotNull notNull = element.getAnnotation(NotNull.class);
+        schema.nullable(notNull == null);
+        Pattern pattern = element.getAnnotation(Pattern.class);
+        if (pattern != null) {
+            schema.pattern(pattern.regexp());
+        }
+        Size size = element.getAnnotation(Size.class);
+        if (size != null) {
+            schema.minLength(size.min());
+            schema.maxLength(size.max());
+        }
+        Min min = element.getAnnotation(Min.class);
+        if (min != null) {
+            schema.minimum(BigDecimal.valueOf(min.value()));
+        }
+        Max max = element.getAnnotation(Max.class);
+        if (max != null) {
+            schema.maximum(BigDecimal.valueOf(max.value()));
+        }
+        DecimalMin decimalMin = element.getAnnotation(DecimalMin.class);
+        if (decimalMin != null) {
+            schema.minimum(BigDecimal.valueOf(Long.parseLong(decimalMin.value())));
+        }
+        DecimalMax decimalMax = element.getAnnotation(DecimalMax.class);
+        if (decimalMax != null) {
+            schema.maximum(BigDecimal.valueOf(Long.parseLong(decimalMax.value())));
+        }
+        NotBlank notBlank = element.getAnnotation(NotBlank.class);
+        NotEmpty notEmpty = element.getAnnotation(NotEmpty.class);
+        if (notBlank != null || notEmpty != null) {
+            schema.nullable(false);
+            schema.minLength(1);
+        }
+        Email email = element.getAnnotation(Email.class);
+        if (email != null) {
+            schema.format("email");
+        }
     }
 
     protected String getPath(String classPath, String methodPath) {
