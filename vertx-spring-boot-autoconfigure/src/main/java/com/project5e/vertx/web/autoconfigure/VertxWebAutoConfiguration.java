@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConditionalOnClass({Vertx.class, Router.class})
 @EnableConfigurationProperties(VertxWebProperties.class)
-public class VertxWebConfiguration {
+public class VertxWebAutoConfiguration {
 
     @ConditionalOnMissingBean
     @Bean

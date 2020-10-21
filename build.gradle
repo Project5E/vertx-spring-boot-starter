@@ -88,5 +88,11 @@ subprojects { project ->
         implementation 'org.apache.commons:commons-lang3:3.9'
         implementation 'org.apache.commons:commons-collections4:4.4'
         implementation 'cn.hutool:hutool-all:5.3.3'
+
+        // swagger
+        implementation "io.swagger.core.v3:swagger-core:2.1.2"
+        implementation "io.swagger.core.v3:swagger-models:2.1.2"
+        implementation "io.swagger.core.v3:swagger-annotations:2.1.2"
+        implementation "io.swagger.core.v3:swagger-integration:2.1.2"
     }
 }

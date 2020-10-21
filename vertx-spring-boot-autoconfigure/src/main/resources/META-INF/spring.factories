@@ -1,5 +1,6 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
 com.project5e.vertx.core.autoconfigure.VertxAutoConfiguration,\
 com.project5e.vertx.serviceproxy.autoconfigure.VertxServiceAutoConfiguration,\
-com.project5e.vertx.web.autoconfigure.VertxWebConfiguration,\
+com.project5e.vertx.web.autoconfigure.VertxWebAutoConfiguration,\
+com.project5e.vertx.swagger.autoconfigure.VertxSwaggerAutoConfiguration,\
 com.project5e.vertx.pgclient.autoconfigure.VertxPgClientAutoConfiguration
