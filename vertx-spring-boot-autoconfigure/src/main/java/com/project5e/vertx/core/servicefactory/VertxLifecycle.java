@@ -9,6 +9,7 @@ import org.springframework.context.SmartLifecycle;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 
 @Slf4j
@@ -43,12 +44,23 @@ public class VertxLifecycle implements SmartLifecycle {
     @SneakyThrows
     private void createAndDeployVerticle(List<VerticleDefinition> verticleDefinitions) {
         verticleDefinitions.sort(Comparator.comparingInt(VerticleDefinition::getOrder));
+        Thread t = Thread.currentThread();
+        CompletableFuture<Throwable> ef = new CompletableFuture<>();
         Semaphore semaphore = new Semaphore(1);
         for (VerticleDefinition definition : verticleDefinitions) {
-            semaphore.acquire();
-            vertx.deployVerticle(definition.getVerticleProxy()).onSuccess(event -> {
-                semaphore.release();
-            }).onFailure(Throwable::printStackTrace);
+            try {
+                semaphore.acquire();
+            } catch (Exception e) {
+                throw ef.get();
+            }
+            vertx.deployVerticle(definition.getVerticleProxy())
+                .onSuccess(event -> {
+                    semaphore.release();
+                })
+                .onFailure(e -> {
+                    ef.complete(e);
+                    t.interrupt();
+                });
         }
     }
 

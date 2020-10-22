@@ -1,11 +1,11 @@
 version = '0.0.1-SNAPSHOT'
 
-def vertxVersion = '4.0.0-milestone4'
-
 dependencies {
     implementation project(":vertx-spring-boot-starter")
-
     implementation project(":vertx-serviceproxy-spring-boot-starter")
+    implementation project(":vertx-web-spring-boot-starter")
+    implementation project(":vertx-web-swagger-spring-boot-starter")
+    implementation "io.vertx:vertx-core:$vertxVersion"
     implementation "io.vertx:vertx-service-proxy:$vertxVersion"
     annotationProcessor "io.vertx:vertx-service-proxy:$vertxVersion"
     annotationProcessor "io.vertx:vertx-codegen:$vertxVersion:processor"
