@@ -6,8 +6,9 @@ import com.project5e.vertx.web.annotation.*;
 import com.project5e.vertx.web.exception.EmptyMethodsException;
 import com.project5e.vertx.web.exception.EmptyPathsException;
 import com.project5e.vertx.web.exception.IllegalPathException;
-import com.project5e.vertx.web.exception.NewInstanceException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.RegExUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
@@ -15,8 +16,6 @@ import org.springframework.context.ApplicationContextAware;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * @author leo
@@ -27,85 +26,81 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
 
     private ApplicationContext applicationContext;
 
+    private ProcessResult result;
+
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         this.applicationContext = applicationContext;
     }
 
-    public ProcessResult process() {
-        ProcessResult result = new ProcessResult();
-        Set<Class<?>> classes = applicationContext.getBeansWithAnnotation(Router.class).values()
-            .stream().map(Object::getClass).collect(Collectors.toSet());
+    public synchronized ProcessResult process() {
+        if (result == null) {
+            result = new ProcessResult();
+            // 收集所有的 路由
+            String[] beanNames = applicationContext.getBeanNamesForAnnotation(Router.class);
+            for (String beanName : beanNames) {
+                Object bean = applicationContext.getBean(beanName);
+                Class<?> clz = bean.getClass();
+                RequestMapping requestMappingAnnotation = applicationContext.findAnnotationOnBean(beanName, RequestMapping.class);
+                String[] rawParentPaths =
+                        requestMappingAnnotation != null ? requestMappingAnnotation.value() : new String[]{"/"};
+                for (String rawParentPath : rawParentPaths) {
+                    String parentPath = handlePath(rawParentPath);
 
-        for (Class<?> clz : classes) {
-            RequestMapping requestMappingAnnotation = AnnotationUtil.getAnnotation(clz, RequestMapping.class);
-            String[] rawParentPaths =
-                requestMappingAnnotation != null ? requestMappingAnnotation.value() : new String[]{"/"};
-            for (String rawParentPath : rawParentPaths) {
-                String parentPath = handlePath(rawParentPath);
+                    Method[] methods = ClassUtil.getPublicMethods(clz);
+                    RouterDescriptor routerDescriptor = new RouterDescriptor(clz, bean);
+                    result.addRouterDescriptor(routerDescriptor);
 
-                Method[] methods = ClassUtil.getPublicMethods(clz);
-                Object routeInstance;
-                try {
-                    routeInstance = clz.newInstance();
-                } catch (Exception e) {
-                    throw new NewInstanceException(e);
-                }
-                RouterDescriptor routerDescriptor = new RouterDescriptor(clz, routeInstance);
-                result.addRouterDescriptor(routerDescriptor);
+                    for (Method method : methods) {
+                        String[] value = getFieldValue(method, "value");
+                        if (value == null) continue;
+                        HttpMethod[] httpMethod = getFieldValue(method, "method");
+                        String[] paths = Arrays.stream(value)
+                                .map(s -> this.handlePath(parentPath + s))
+                                .distinct()
+                                .toArray(String[]::new);
+                        if (paths.length == 0) {
+                            throw new EmptyPathsException();
+                        }
+                        HttpMethod[] httpMethods = Arrays.stream(httpMethod).distinct().toArray(HttpMethod[]::new);
+                        if (httpMethods.length == 0) {
+                            throw new EmptyMethodsException();
+                        }
 
-                for (Method method : methods) {
-                    String[] value = getValues(method);
-                    if (value == null) continue;
-                    HttpMethod[] httpMethod = getHttpMethods(method);
-                    String[] paths = Arrays.stream(value)
-                        .map(s -> this.handlePath(parentPath + s))
-                        .distinct()
-                        .toArray(String[]::new);
-                    if (paths.length == 0) {
-                        throw new EmptyPathsException();
+                        MethodDescriptor methodDescriptor = new MethodDescriptor(routerDescriptor);
+                        methodDescriptor.setPaths(paths);
+                        methodDescriptor.setHttpMethods(httpMethods);
+                        methodDescriptor.setMethod(method);
+                        routerDescriptor.addMethodDescriptor(methodDescriptor);
                     }
-                    HttpMethod[] httpMethods = Arrays.stream(httpMethod).distinct().toArray(HttpMethod[]::new);
-                    if (httpMethods.length == 0) {
-                        throw new EmptyMethodsException();
-                    }
-
-                    MethodDescriptor methodDescriptor = new MethodDescriptor(routerDescriptor);
-                    methodDescriptor.setPaths(paths);
-                    methodDescriptor.setHttpMethods(httpMethods);
-                    methodDescriptor.setMethod(method);
-                    routerDescriptor.addMethodDescriptor(methodDescriptor);
                 }
             }
-        }
 
+            // 收集错误处理器
+            beanNames = applicationContext.getBeanNamesForAnnotation(RouterAdvice.class);
+            for (String beanName : beanNames) {
+                Object bean = applicationContext.getBean(beanName);
+                Class<?> clz = bean.getClass();
+                Method[] publicMethods = ClassUtil.getPublicMethods(clz);
+                for (Method method : publicMethods) {
+                    ExceptionHandler handlerAnnotation = method.getAnnotation(ExceptionHandler.class);
+                    if (handlerAnnotation == null) {
+                        continue;
+                    }
+                    Class<? extends Throwable>[] careThrows = handlerAnnotation.value();
+                    if (ArrayUtils.isEmpty(careThrows)) {
+                        careThrows = new Class[]{Throwable.class};
+                    }
+                    result.addAdviceDescriptor(new RouterAdviceDescriptor(careThrows, bean).setMethod(method));
+                }
+            }
+
+        }
         return result;
     }
 
-    private String[] getValues(Method method) {
-        String name = "value";
-        String[] value = AnnotationUtil.getAnnotationValue(method, GetMapping.class, name);
-        if (value == null) {
-            value = AnnotationUtil.getAnnotationValue(method, PostMapping.class, name);
-        }
-        if (value == null) {
-            value = AnnotationUtil.getAnnotationValue(method, PutMapping.class, name);
-        }
-        if (value == null) {
-            value = AnnotationUtil.getAnnotationValue(method, PatchMapping.class, name);
-        }
-        if (value == null) {
-            value = AnnotationUtil.getAnnotationValue(method, DeleteMapping.class, name);
-        }
-        if (value == null) {
-            value = AnnotationUtil.getAnnotationValue(method, RequestMapping.class, name);
-        }
-        return value;
-    }
-
-    private HttpMethod[] getHttpMethods(Method method) {
-        String name = "method";
-        HttpMethod[] value = AnnotationUtil.getAnnotationValue(method, GetMapping.class, name);
+    private <T> T getFieldValue(Method method, String name) {
+        T value = AnnotationUtil.getAnnotationValue(method, GetMapping.class, name);
         if (value == null) {
             value = AnnotationUtil.getAnnotationValue(method, PostMapping.class, name);
         }
@@ -129,7 +124,7 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
         if (StringUtils.isBlank(path) || !path.startsWith("/")) {
             throw new IllegalPathException();
         }
-        path = StringUtils.replaceAll(path, "[/]+", "/");
+        path = RegExUtils.replaceAll(path, "[/]+", "/");
         if (path.length() > 1) {
             path = StringUtils.stripEnd(path, "/");
         }

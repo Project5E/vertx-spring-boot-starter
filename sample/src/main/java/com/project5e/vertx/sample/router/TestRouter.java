@@ -1,8 +1,8 @@
-package com.project5e.vertx.sample.controller;
+package com.project5e.vertx.sample.router;
 
-import com.project5e.vertx.sample.controller.dto.Query;
-import com.project5e.vertx.sample.controller.dto.Result;
-import com.project5e.vertx.sample.controller.dto.SomeType;
+import com.project5e.vertx.sample.router.dto.Query;
+import com.project5e.vertx.sample.router.dto.Result;
+import com.project5e.vertx.sample.router.dto.SomeType;
 import com.project5e.vertx.web.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -73,6 +73,14 @@ public class TestRouter {
     @GetMapping(value = "/enum1")
     public Future<String> enum1(@RequestParam("code") SomeType type) {
         return Future.succeededFuture(type.name());
+    }
+
+
+    @Operation
+    @GetMapping(value = "/error1")
+    public Future<Integer> error1() {
+        int a = 1/0;
+        return Future.succeededFuture(a);
     }
 
 }

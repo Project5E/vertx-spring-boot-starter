@@ -32,6 +32,7 @@ public class VertxWebLifecycle implements SmartLifecycle {
                 log.info("Vertx http listen on {}", properties.getPort());
             })
             .onFailure(e -> {
+                // TODO 异常处理
                 log.error("Vertx http server start fail.", e);
             });
     }

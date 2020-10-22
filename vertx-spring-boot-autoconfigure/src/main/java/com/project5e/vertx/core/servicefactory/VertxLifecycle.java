@@ -44,6 +44,7 @@ public class VertxLifecycle implements SmartLifecycle {
     @SneakyThrows
     private void createAndDeployVerticle(List<VerticleDefinition> verticleDefinitions) {
         verticleDefinitions.sort(Comparator.comparingInt(VerticleDefinition::getOrder));
+        // TODO 异常处理方式感觉不太好
         Thread t = Thread.currentThread();
         CompletableFuture<Throwable> ef = new CompletableFuture<>();
         Semaphore semaphore = new Semaphore(1);

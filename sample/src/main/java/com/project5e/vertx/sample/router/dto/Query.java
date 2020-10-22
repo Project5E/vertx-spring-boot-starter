@@ -1,4 +1,4 @@
-package com.project5e.vertx.sample.controller.dto;
+package com.project5e.vertx.sample.router.dto;
 
 import lombok.Data;
 

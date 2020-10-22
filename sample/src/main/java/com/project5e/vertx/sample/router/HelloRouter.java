@@ -1,4 +1,4 @@
-package com.project5e.vertx.sample.controller;
+package com.project5e.vertx.sample.router;
 
 import com.project5e.vertx.web.annotation.HttpMethod;
 import com.project5e.vertx.web.annotation.RequestMapping;
@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Router
 @Tag(name = "ttp")
-public class HelloController {
+public class HelloRouter {
 
     @RequestMapping(value = "/hello", method = HttpMethod.GET)
     public Future<String> hello() {
