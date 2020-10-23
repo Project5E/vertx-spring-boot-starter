@@ -16,4 +16,11 @@ public class MyExceptionHandler {
         return Future.succeededFuture(exception.getMessage());
     }
 
+    // TODO 未实现，可能不需要
+//    @ExceptionHandler(IllegalArgumentException.class)
+//    public void exceptionHandler1(RoutingContext routingContext, Exception exception) {
+//        log.error(exception.getMessage(), exception);
+//        routingContext.response().setStatusCode(500);
+//    }
+
 }

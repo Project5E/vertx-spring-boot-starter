@@ -96,7 +96,7 @@ public class HttpRouterGenerator {
                 }
             }
             Future<?> result = (Future<?>) advice.getMethod().invoke(advice.getInstance(), objects);
-            dealResponse(ctx.response(), advice.getActualType(), result);
+            dealResponse(ctx, advice.getActualType(), result);
             return;
         }
         e.printStackTrace();
@@ -108,7 +108,6 @@ public class HttpRouterGenerator {
     }
 
     private void handleRequest(MethodDescriptor methodDescriptor, RoutingContext ctx) throws Exception {
-        HttpServerResponse response = ctx.response();
         Method method = methodDescriptor.getMethod();
         Parameter[] parameters = methodDescriptor.getParameters();
         Object[] objects = new Object[parameters.length];
@@ -119,6 +118,12 @@ public class HttpRouterGenerator {
             dealRequestParam(ctx, objects, i, parameter, type);
             dealPathVariable(ctx, objects, i, parameter, type);
             dealRequestBody(ctx, objects, i, parameter, type);
+            // 处理没有被注解的参数
+            if (objects[i] == null) {
+                if (RoutingContext.class.isAssignableFrom(parameter.getType())) {
+                    objects[i] = ctx;
+                }
+            }
         }
 
         if (ClassUtil.isAssignable(Future.class, methodDescriptor.getReturnType().getClass())) {
@@ -126,7 +131,7 @@ public class HttpRouterGenerator {
         }
         // Write to the response and end it
         Future<?> result = (Future<?>) method.invoke(methodDescriptor.getRouterDescriptor().getInstance(), objects);
-        dealResponse(response, methodDescriptor.getActualType(), result);
+        dealResponse(ctx, methodDescriptor.getActualType(), result);
     }
 
     private void dealRequestHeader(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {
@@ -213,7 +218,11 @@ public class HttpRouterGenerator {
         return null;
     }
 
-    private void dealResponse(HttpServerResponse response, Type type, Future<?> result) {
+    private void dealResponse(RoutingContext ctx, Type type, Future<?> result) {
+        HttpServerResponse response = ctx.response();
+        if (response.ended()) {
+            return;
+        }
         ContentType contentType;
         Class<?> clz = TypeUtil.getClass(type);
         if (clz == null || clz.isPrimitive() || ClassUtil.isPrimitiveWrapper(clz) || CharSequence.class.isAssignableFrom(clz)) {
@@ -235,8 +244,7 @@ public class HttpRouterGenerator {
                         response.end();
                 }
             } else {
-                response.setStatusCode(500);
-                response.end();
+                handleError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
             }
         });
     }
