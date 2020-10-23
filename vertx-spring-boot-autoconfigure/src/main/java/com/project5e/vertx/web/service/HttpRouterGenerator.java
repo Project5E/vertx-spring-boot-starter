@@ -1,6 +1,7 @@
 package com.project5e.vertx.web.service;
 
 import cn.hutool.core.util.ClassUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.TypeUtil;
 import cn.hutool.http.ContentType;
 import com.project5e.vertx.web.annotation.*;
@@ -16,6 +17,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -28,7 +30,7 @@ import java.util.*;
 public class HttpRouterGenerator {
 
     private final Vertx vertx;
-    private ProcessResult processResult;
+    private final ProcessResult processResult;
     private Map<HttpMethod, Set<String>> existsPathMap;
 
     public HttpRouterGenerator(Vertx vertx, ProcessResult processResult) {
@@ -51,15 +53,14 @@ public class HttpRouterGenerator {
                 for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
                     for (String path : methodDescriptor.getPaths()) {
                         router.route(io.vertx.core.http.HttpMethod.valueOf(httpMethod.name()), path)
-                            .handler(BodyHandler.create())
-                            .handler(ctx -> {
-                                try {
-                                    handleRequest(methodDescriptor, ctx);
-                                } catch (Exception e) {
-                                    handleError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
-                                    e.printStackTrace();
-                                }
-                            });
+                                .handler(BodyHandler.create())
+                                .handler(ctx -> {
+                                    try {
+                                        handleRequest(methodDescriptor, ctx);
+                                    } catch (Throwable e) {
+                                        dealError(ctx, e);
+                                    }
+                                });
                         Set<String> pathSet = existsPathMap.get(httpMethod);
                         if (pathSet.contains(path)) {
                             throw new MappingDuplicateException(httpMethod, path);
@@ -73,12 +74,40 @@ public class HttpRouterGenerator {
         return router;
     }
 
+    @SneakyThrows
+    private void dealError(RoutingContext ctx, Throwable e) {
+        RouterAdviceDescriptor advice = processResult.getAdviceDescriptors().stream().filter(adviceDescriptor -> {
+            for (Class<? extends Throwable> careThrow : adviceDescriptor.getCareThrows()) {
+                if (careThrow.isAssignableFrom(e.getClass())) {
+                    return true;
+                }
+            }
+            return false;
+        }).findFirst().orElse(null);
+        if (advice != null) {
+            Parameter[] parameters = advice.getParameters();
+            Object[] objects = new Object[parameters.length];
+            for (int i = 0; i < parameters.length; i++) {
+                Parameter parameter = parameters[i];
+                if (Throwable.class.isAssignableFrom(parameter.getType())) {
+                    objects[i] = e;
+                } else if (RoutingContext.class.isAssignableFrom(parameter.getType())) {
+                    objects[i] = ctx;
+                }
+            }
+            Future<?> result = (Future<?>) advice.getMethod().invoke(advice.getInstance(), objects);
+            dealResponse(ctx, advice.getActualType(), result);
+            return;
+        }
+        e.printStackTrace();
+        handleError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+    }
+
     private void handleError(RoutingContext ctx, HttpResponseStatus status) {
         ctx.response().setStatusCode(status.code()).end(status.reasonPhrase());
     }
 
     private void handleRequest(MethodDescriptor methodDescriptor, RoutingContext ctx) throws Exception {
-        HttpServerResponse response = ctx.response();
         Method method = methodDescriptor.getMethod();
         Parameter[] parameters = methodDescriptor.getParameters();
         Object[] objects = new Object[parameters.length];
@@ -89,6 +118,12 @@ public class HttpRouterGenerator {
             dealRequestParam(ctx, objects, i, parameter, type);
             dealPathVariable(ctx, objects, i, parameter, type);
             dealRequestBody(ctx, objects, i, parameter, type);
+            // 处理没有被注解的参数
+            if (objects[i] == null) {
+                if (RoutingContext.class.isAssignableFrom(parameter.getType())) {
+                    objects[i] = ctx;
+                }
+            }
         }
 
         if (ClassUtil.isAssignable(Future.class, methodDescriptor.getReturnType().getClass())) {
@@ -96,7 +131,7 @@ public class HttpRouterGenerator {
         }
         // Write to the response and end it
         Future<?> result = (Future<?>) method.invoke(methodDescriptor.getRouterDescriptor().getInstance(), objects);
-        dealResponse(response, methodDescriptor.getActualType(), result);
+        dealResponse(ctx, methodDescriptor.getActualType(), result);
     }
 
     private void dealRequestHeader(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {
@@ -183,7 +218,11 @@ public class HttpRouterGenerator {
         return null;
     }
 
-    private void dealResponse(HttpServerResponse response, Type type, Future<?> result) {
+    private void dealResponse(RoutingContext ctx, Type type, Future<?> result) {
+        HttpServerResponse response = ctx.response();
+        if (response.ended()) {
+            return;
+        }
         ContentType contentType;
         Class<?> clz = TypeUtil.getClass(type);
         if (clz == null || clz.isPrimitive() || ClassUtil.isPrimitiveWrapper(clz) || CharSequence.class.isAssignableFrom(clz)) {
@@ -199,14 +238,13 @@ public class HttpRouterGenerator {
                         response.end(Json.encode(ar.result()));
                         break;
                     case TEXT_PLAIN:
-                        response.end(ar.result().toString());
+                        response.end(StrUtil.toString(ar.result()));
                         break;
                     default:
                         response.end();
                 }
             } else {
-                response.setStatusCode(500);
-                response.end();
+                handleError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
             }
         });
     }

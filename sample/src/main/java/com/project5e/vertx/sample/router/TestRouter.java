@@ -1,13 +1,19 @@
-package com.project5e.vertx.sample.controller;
+package com.project5e.vertx.sample.router;
 
-import com.project5e.vertx.sample.controller.dto.Query;
-import com.project5e.vertx.sample.controller.dto.Result;
-import com.project5e.vertx.sample.controller.dto.SomeType;
+import com.project5e.vertx.sample.router.dto.Query;
+import com.project5e.vertx.sample.router.dto.Result;
+import com.project5e.vertx.sample.router.dto.SomeType;
 import com.project5e.vertx.web.annotation.*;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
+import io.vertx.core.Vertx;
+import io.vertx.ext.web.RoutingContext;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.validation.constraints.Min;
 import java.util.ArrayList;
@@ -23,6 +29,9 @@ import java.util.List;
 @ApiResponse(responseCode = "404", description = "没找到")
 @ApiResponse(responseCode = "403", description = "没找到")
 public class TestRouter {
+
+    @Autowired
+    Vertx vertx;
 
     @Operation(summary = "获取helloWorld")
     @GetMapping(value = "/get")
@@ -65,7 +74,8 @@ public class TestRouter {
 
     @Operation
     @GetMapping(value = "/post2")
-    public Future<String> post2(@RequestParam("id") String id) {
+    public Future<String> post2(@RequestParam("id") String id, RoutingContext ctx) {
+        ctx.response().setStatusCode(HttpResponseStatus.CREATED.code());
         return Future.succeededFuture(id);
     }
 
@@ -73,6 +83,13 @@ public class TestRouter {
     @GetMapping(value = "/enum1")
     public Future<String> enum1(@RequestParam("code") SomeType type) {
         return Future.succeededFuture(type.name());
+    }
+
+    @Operation
+    @GetMapping(value = "/error1")
+    public Future<Integer> error1() {
+        int a = 1/0;
+        return Future.succeededFuture(a);
     }
 
 }
