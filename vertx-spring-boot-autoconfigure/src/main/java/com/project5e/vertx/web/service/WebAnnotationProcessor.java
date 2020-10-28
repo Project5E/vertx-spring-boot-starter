@@ -99,13 +99,7 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
             // 收集所有的拦截器
             beanNames = applicationContext.getBeanNamesForType(RouteInterceptor.class);
             for (String beanName : beanNames) {
-                RouteInterceptor bean = (RouteInterceptor) applicationContext.getBean(beanName);
-                InterceptorDescriptor interceptorDescriptor = new InterceptorDescriptor();
-                interceptorDescriptor.setMatchCondition(bean::matches);
-                interceptorDescriptor.setOrder(bean.order());
-                interceptorDescriptor.setPreHandle(handlerMethod -> event -> bean.preHandle(event, handlerMethod));
-                interceptorDescriptor.setPostHandle(handlerMethod -> event -> bean.postHandle(event, handlerMethod));
-                result.addInterceptorDescriptor(interceptorDescriptor);
+                result.addRouteInterceptor((RouteInterceptor) applicationContext.getBean(beanName));
             }
 
         }

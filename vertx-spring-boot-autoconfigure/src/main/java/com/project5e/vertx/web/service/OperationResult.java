@@ -2,10 +2,8 @@ package com.project5e.vertx.web.service;
 
 import cn.hutool.http.ContentType;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 
 @Data
-@RequiredArgsConstructor
 public class OperationResult {
 
     private Boolean succeed;

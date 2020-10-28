@@ -9,6 +9,7 @@ import com.project5e.vertx.web.exception.AnnotationEmptyValueException;
 import com.project5e.vertx.web.exception.MappingDuplicateException;
 import com.project5e.vertx.web.exception.ReturnTypeWrongException;
 import com.project5e.vertx.web.intercepter.HandlerMethod;
+import com.project5e.vertx.web.intercepter.RouteInterceptor;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -23,6 +24,7 @@ import io.vertx.ext.web.handler.BodyHandler;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -81,21 +83,21 @@ public class HttpRouterGenerator {
     }
 
     private void fillHandlers(Route route, Method method, Handler<RoutingContext> handler) {
-        List<InterceptorDescriptor> matchedOrderDescriptors = processResult.getInterceptorDescriptors().stream()
-            .filter(interceptorDescriptor -> interceptorDescriptor.getMatchCondition().apply(route))
-            .sorted(Comparator.comparingInt(InterceptorDescriptor::getOrder))
+        List<RouteInterceptor> interceptors = processResult.getRouteInterceptors().stream()
+            .filter(routeInterceptor -> routeInterceptor.matches(route))
+            .sorted(AnnotationAwareOrderComparator.INSTANCE)
             .collect(Collectors.toList());
         HandlerMethod handlerMethod = new HandlerMethod(method);
 
         // body处理器
         route.handler(BodyHandler.create());
         // 前置处理器
-        matchedOrderDescriptors.forEach(interceptorDescriptor -> route.handler(interceptorDescriptor.getPreHandle().apply(handlerMethod)));
+        interceptors.forEach(interceptor -> route.handler(ctx -> interceptor.preHandle(ctx, handlerMethod)));
         // 业务处理器
         route.handler(handler);
-        Collections.reverse(matchedOrderDescriptors);
+        Collections.reverse(interceptors);
         // 后置处理器
-        matchedOrderDescriptors.forEach(interceptorDescriptor -> route.handler(interceptorDescriptor.getPostHandle().apply(handlerMethod)));
+        interceptors.forEach(interceptor -> route.handler(ctx -> interceptor.postHandle(ctx, handlerMethod)));
         // 结果处理器
         route.handler(completeHandler());
         // 失败处理器

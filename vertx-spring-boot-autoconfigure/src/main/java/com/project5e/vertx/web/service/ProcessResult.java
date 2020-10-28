@@ -1,5 +1,6 @@
 package com.project5e.vertx.web.service;
 
+import com.project5e.vertx.web.intercepter.RouteInterceptor;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ public class ProcessResult {
 
     private List<RouterAdviceDescriptor> adviceDescriptors = new ArrayList<>();
 
-    private List<InterceptorDescriptor> interceptorDescriptors = new ArrayList<>();
+    private List<RouteInterceptor> routeInterceptors = new ArrayList<>();
 
     public void addRouterDescriptor(RouterDescriptor routerDescriptor) {
         routerDescriptors.add(routerDescriptor);
@@ -22,8 +23,8 @@ public class ProcessResult {
         adviceDescriptors.add(adviceDescriptor);
     }
 
-    public void addInterceptorDescriptor(InterceptorDescriptor interceptorDescriptor) {
-        interceptorDescriptors.add(interceptorDescriptor);
+    public void addRouteInterceptor(RouteInterceptor routeInterceptor) {
+        routeInterceptors.add(routeInterceptor);
     }
 
 }

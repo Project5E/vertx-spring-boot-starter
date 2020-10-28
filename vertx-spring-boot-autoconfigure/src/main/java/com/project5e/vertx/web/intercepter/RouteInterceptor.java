@@ -17,13 +17,6 @@ public interface RouteInterceptor {
     boolean matches(Route route);
 
     /**
-     * 顺序，越小优先级越高，如果顺序相同，则先后顺序不予保证
-     *
-     * @return 顺序
-     */
-    int order();
-
-    /**
      * Route的前置handler
      * 用户必须调用context.next()才会执行下一步
      */
