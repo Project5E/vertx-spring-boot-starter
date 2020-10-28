@@ -18,6 +18,7 @@ public class MyRouteInterceptor1 implements RouteInterceptor, Ordered {
     @Override
     public void preHandle(RoutingContext context, HandlerMethod handlerMethod) {
         System.out.println("编号为5的前置处理");
+        System.out.println(handlerMethod);
         context.next();
     }
 

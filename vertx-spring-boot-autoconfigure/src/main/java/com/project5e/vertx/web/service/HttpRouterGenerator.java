@@ -68,7 +68,7 @@ public class HttpRouterGenerator {
                                 dealError(ctx, e);
                             }
                         };
-                        fillHandlers(route, methodDescriptor.getMethod(), businessHandler);
+                        fillHandlers(route, methodDescriptor, businessHandler);
                         Set<String> pathSet = existsPathMap.get(httpMethod);
                         if (pathSet.contains(path)) {
                             throw new MappingDuplicateException(httpMethod, path);
@@ -82,12 +82,16 @@ public class HttpRouterGenerator {
         return router;
     }
 
-    private void fillHandlers(Route route, Method method, Handler<RoutingContext> handler) {
+    private void fillHandlers(Route route, MethodDescriptor methodDescriptor, Handler<RoutingContext> handler) {
         List<RouteInterceptor> interceptors = processResult.getRouteInterceptors().stream()
             .filter(routeInterceptor -> routeInterceptor.matches(route))
             .sorted(AnnotationAwareOrderComparator.INSTANCE)
             .collect(Collectors.toList());
-        HandlerMethod handlerMethod = new HandlerMethod(method);
+        HandlerMethod handlerMethod = new HandlerMethod(
+            methodDescriptor.getMethod(),
+            methodDescriptor.getRouterDescriptor().getClazz(),
+            methodDescriptor.getRouterDescriptor().getInstance()
+        );
 
         // body处理器
         route.handler(BodyHandler.create());
