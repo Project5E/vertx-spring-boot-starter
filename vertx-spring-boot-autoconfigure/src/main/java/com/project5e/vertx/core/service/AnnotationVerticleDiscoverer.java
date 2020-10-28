@@ -7,7 +7,6 @@ import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
-import org.springframework.core.annotation.Order;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,7 +32,6 @@ public class AnnotationVerticleDiscoverer implements ApplicationContextAware, Ve
                 io.vertx.core.Verticle verticleProxy = applicationContext.getBean(beanName, io.vertx.core.Verticle.class);
                 io.vertx.core.Verticle verticle = (io.vertx.core.Verticle) AopProxyUtils.getSingletonTarget(verticleProxy);
                 Verticle verticleAnnotation = applicationContext.findAnnotationOnBean(beanName, Verticle.class);
-                Order orderAnnotation = applicationContext.findAnnotationOnBean(beanName, Order.class);
                 assert verticle != null;
                 log.info("find verticle [{}]", verticle.getClass().getCanonicalName());
                 VerticleDefinition definition = new VerticleDefinition();
@@ -41,7 +39,6 @@ public class AnnotationVerticleDiscoverer implements ApplicationContextAware, Ve
                 definition.setVerticleProxy(verticleProxy);
                 definition.setVerticle(verticle);
                 definition.setTargetClass((Class<? extends io.vertx.core.Verticle>) AopUtils.getTargetClass(verticleProxy));
-                definition.setOrder(orderAnnotation == null ? 0 : orderAnnotation.value());
                 definitions.add(definition);
             }
         }
