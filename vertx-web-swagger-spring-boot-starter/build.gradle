@@ -1,9 +1,19 @@
+apply plugin: 'maven'
 version = '0.0.1-SNAPSHOT'
 
 bootJar {
     enabled = false
 }
+jar {
+    enabled = true
+}
 
 dependencies {
     api project(":vertx-spring-boot-autoconfigure")
+    api project(":vertx-web-spring-boot-starter")
+
+    api "io.swagger.core.v3:swagger-core:2.1.2"
+    api "io.swagger.core.v3:swagger-models:2.1.2"
+    api "io.swagger.core.v3:swagger-annotations:2.1.2"
+    api "io.swagger.core.v3:swagger-integration:2.1.2"
 }

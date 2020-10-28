@@ -1,9 +1,15 @@
+apply plugin: 'maven'
 version = '0.0.1-SNAPSHOT'
 
 bootJar {
     enabled = false
 }
+jar {
+    enabled = true
+}
 
 dependencies {
     api project(":vertx-spring-boot-autoconfigure")
+    api project(":vertx-spring-boot-starter")
+    api "io.vertx:vertx-web:${vertxVersion}"
 }
