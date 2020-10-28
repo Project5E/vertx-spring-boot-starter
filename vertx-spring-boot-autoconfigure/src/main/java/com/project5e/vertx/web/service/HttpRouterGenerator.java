@@ -8,12 +8,15 @@ import com.project5e.vertx.web.annotation.*;
 import com.project5e.vertx.web.exception.AnnotationEmptyValueException;
 import com.project5e.vertx.web.exception.MappingDuplicateException;
 import com.project5e.vertx.web.exception.ReturnTypeWrongException;
+import com.project5e.vertx.web.intercepter.HandlerMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
+import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -25,9 +28,12 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class HttpRouterGenerator {
+
+    private static final String OPERATION_RESULT_KEY = "operationResult";
 
     private final Vertx vertx;
     private final ProcessResult processResult;
@@ -52,15 +58,15 @@ public class HttpRouterGenerator {
             for (MethodDescriptor methodDescriptor : routerDescriptor.getMethodDescriptors()) {
                 for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
                     for (String path : methodDescriptor.getPaths()) {
-                        router.route(io.vertx.core.http.HttpMethod.valueOf(httpMethod.name()), path)
-                                .handler(BodyHandler.create())
-                                .handler(ctx -> {
-                                    try {
-                                        handleRequest(methodDescriptor, ctx);
-                                    } catch (Throwable e) {
-                                        dealError(ctx, e);
-                                    }
-                                });
+                        Route route = router.route(io.vertx.core.http.HttpMethod.valueOf(httpMethod.name()), path);
+                        Handler<RoutingContext> businessHandler = ctx -> {
+                            try {
+                                handleRequest(methodDescriptor, ctx);
+                            } catch (Throwable e) {
+                                dealError(ctx, e);
+                            }
+                        };
+                        fillHandlers(route, methodDescriptor.getMethod(), businessHandler);
                         Set<String> pathSet = existsPathMap.get(httpMethod);
                         if (pathSet.contains(path)) {
                             throw new MappingDuplicateException(httpMethod, path);
@@ -72,6 +78,28 @@ public class HttpRouterGenerator {
             }
         }
         return router;
+    }
+
+    private void fillHandlers(Route route, Method method, Handler<RoutingContext> handler) {
+        List<InterceptorDescriptor> matchedOrderDescriptors = processResult.getInterceptorDescriptors().stream()
+            .filter(interceptorDescriptor -> interceptorDescriptor.getMatchCondition().apply(route))
+            .sorted(Comparator.comparingInt(InterceptorDescriptor::getOrder))
+            .collect(Collectors.toList());
+        HandlerMethod handlerMethod = new HandlerMethod(method);
+
+        // body处理器
+        route.handler(BodyHandler.create());
+        // 前置处理器
+        matchedOrderDescriptors.forEach(interceptorDescriptor -> route.handler(interceptorDescriptor.getPreHandle().apply(handlerMethod)));
+        // 业务处理器
+        route.handler(handler);
+        Collections.reverse(matchedOrderDescriptors);
+        // 后置处理器
+        matchedOrderDescriptors.forEach(interceptorDescriptor -> route.handler(interceptorDescriptor.getPostHandle().apply(handlerMethod)));
+        // 结果处理器
+        route.handler(completeHandler());
+        // 失败处理器
+        route.failureHandler(ctx -> dealError(ctx, ctx.failure()));
     }
 
     @SneakyThrows
@@ -100,11 +128,11 @@ public class HttpRouterGenerator {
             return;
         }
         e.printStackTrace();
-        handleError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    private void handleError(RoutingContext ctx, HttpResponseStatus status) {
-        ctx.response().setStatusCode(status.code()).end(status.reasonPhrase());
+        OperationResult operationResult = new OperationResult();
+        operationResult.setSucceed(false);
+        operationResult.setCause(e);
+        ctx.put(OPERATION_RESULT_KEY, operationResult);
+        ctx.next();
     }
 
     private void handleRequest(MethodDescriptor methodDescriptor, RoutingContext ctx) throws Exception {
@@ -230,22 +258,37 @@ public class HttpRouterGenerator {
         } else {
             contentType = ContentType.JSON;
         }
-        response.putHeader("content-type", contentType.getValue());
         result.onComplete(ar -> {
+            OperationResult operationResult = new OperationResult();
+            operationResult.setSucceed(ar.succeeded());
+            operationResult.setCause(ar.cause());
+            operationResult.setContentType(contentType);
             if (ar.succeeded()) {
                 switch (contentType) {
                     case JSON:
-                        response.end(Json.encode(ar.result()));
+                        operationResult.setChunk(Json.encode(ar.result()));
                         break;
                     case TEXT_PLAIN:
-                        response.end(StrUtil.toString(ar.result()));
+                        operationResult.setChunk(StrUtil.toString(ar.result()));
                         break;
                     default:
-                        response.end();
+                        operationResult.setChunk(null);
                 }
-            } else {
-                handleError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
             }
+            ctx.put(OPERATION_RESULT_KEY, operationResult);
+            ctx.next();
         });
+    }
+
+    private Handler<RoutingContext> completeHandler() {
+        return ctx -> {
+            OperationResult operationResult = ctx.get(OPERATION_RESULT_KEY);
+            if (operationResult.getSucceed()) {
+                ctx.response().putHeader("content-type", operationResult.getContentType().getValue());
+                ctx.response().end(operationResult.getChunk());
+            } else {
+                ctx.fail(HttpResponseStatus.INTERNAL_SERVER_ERROR.code(), operationResult.getCause());
+            }
+        };
     }
 }

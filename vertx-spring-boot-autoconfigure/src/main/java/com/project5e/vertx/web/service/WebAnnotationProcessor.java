@@ -6,6 +6,7 @@ import com.project5e.vertx.web.annotation.*;
 import com.project5e.vertx.web.exception.EmptyMethodsException;
 import com.project5e.vertx.web.exception.EmptyPathsException;
 import com.project5e.vertx.web.exception.IllegalPathException;
+import com.project5e.vertx.web.intercepter.RouteInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RegExUtils;
@@ -43,7 +44,7 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
                 Class<?> clz = bean.getClass();
                 RequestMapping requestMappingAnnotation = applicationContext.findAnnotationOnBean(beanName, RequestMapping.class);
                 String[] rawParentPaths =
-                        requestMappingAnnotation != null ? requestMappingAnnotation.value() : new String[]{"/"};
+                    requestMappingAnnotation != null ? requestMappingAnnotation.value() : new String[]{"/"};
                 for (String rawParentPath : rawParentPaths) {
                     String parentPath = handlePath(rawParentPath);
 
@@ -56,9 +57,9 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
                         if (value == null) continue;
                         HttpMethod[] httpMethod = getFieldValue(method, "method");
                         String[] paths = Arrays.stream(value)
-                                .map(s -> this.handlePath(parentPath + s))
-                                .distinct()
-                                .toArray(String[]::new);
+                            .map(s -> this.handlePath(parentPath + s))
+                            .distinct()
+                            .toArray(String[]::new);
                         if (paths.length == 0) {
                             throw new EmptyPathsException();
                         }
@@ -93,6 +94,18 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
                     }
                     result.addAdviceDescriptor(new RouterAdviceDescriptor(careThrows, bean).setMethod(method));
                 }
+            }
+
+            // 收集所有的拦截器
+            beanNames = applicationContext.getBeanNamesForType(RouteInterceptor.class);
+            for (String beanName : beanNames) {
+                RouteInterceptor bean = (RouteInterceptor) applicationContext.getBean(beanName);
+                InterceptorDescriptor interceptorDescriptor = new InterceptorDescriptor();
+                interceptorDescriptor.setMatchCondition(bean::matches);
+                interceptorDescriptor.setOrder(bean.order());
+                interceptorDescriptor.setPreHandle(handlerMethod -> event -> bean.preHandle(event, handlerMethod));
+                interceptorDescriptor.setPostHandle(handlerMethod -> event -> bean.postHandle(event, handlerMethod));
+                result.addInterceptorDescriptor(interceptorDescriptor);
             }
 
         }

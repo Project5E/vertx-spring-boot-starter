@@ -12,12 +12,18 @@ public class ProcessResult {
 
     private List<RouterAdviceDescriptor> adviceDescriptors = new ArrayList<>();
 
+    private List<InterceptorDescriptor> interceptorDescriptors = new ArrayList<>();
+
     public void addRouterDescriptor(RouterDescriptor routerDescriptor) {
         routerDescriptors.add(routerDescriptor);
     }
 
     public void addAdviceDescriptor(RouterAdviceDescriptor adviceDescriptor) {
         adviceDescriptors.add(adviceDescriptor);
+    }
+
+    public void addInterceptorDescriptor(InterceptorDescriptor interceptorDescriptor) {
+        interceptorDescriptors.add(interceptorDescriptor);
     }
 
 }
