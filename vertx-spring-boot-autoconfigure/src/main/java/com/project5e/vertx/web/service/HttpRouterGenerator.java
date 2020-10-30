@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.TypeUtil;
 import cn.hutool.http.ContentType;
 import com.project5e.vertx.web.annotation.*;
+import com.project5e.vertx.web.autoconfigure.VertxWebProperties;
 import com.project5e.vertx.web.exception.AnnotationEmptyValueException;
 import com.project5e.vertx.web.exception.MappingDuplicateException;
 import com.project5e.vertx.web.exception.ReturnTypeWrongException;
@@ -21,9 +22,13 @@ import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.CorsHandler;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 
 import java.lang.reflect.Method;
@@ -33,17 +38,26 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class HttpRouterGenerator {
+public class HttpRouterGenerator implements ApplicationContextAware {
+
+    private ApplicationContext applicationContext;
 
     private static final String OPERATION_RESULT_KEY = "operationResult";
 
     private final Vertx vertx;
     private final ProcessResult processResult;
+    private final VertxWebProperties properties;
     private Map<HttpMethod, Set<String>> existsPathMap;
 
-    public HttpRouterGenerator(Vertx vertx, ProcessResult processResult) {
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
+    }
+
+    public HttpRouterGenerator(Vertx vertx, ProcessResult processResult, VertxWebProperties properties) {
         this.vertx = vertx;
         this.processResult = processResult;
+        this.properties = properties;
     }
 
     public Router generate() {
@@ -56,6 +70,18 @@ public class HttpRouterGenerator {
 
     private Router findAndGenerateRouter() {
         Router router = Router.router(vertx);
+        Route globalRoute = router.route();
+        // Cors
+        CorsHandler corsHandler = null;
+        try {
+            corsHandler = applicationContext.getBean(CorsHandler.class);
+        } catch (Exception e) {
+            log.warn("notfound any CorsHandler");
+        }
+        if (corsHandler != null) {
+            globalRoute.handler(corsHandler);
+            log.info("web add CorsHandler");
+        }
         for (RouterDescriptor routerDescriptor : processResult.getRouterDescriptors()) {
             for (MethodDescriptor methodDescriptor : routerDescriptor.getMethodDescriptors()) {
                 for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
@@ -84,17 +110,21 @@ public class HttpRouterGenerator {
 
     private void fillHandlers(Route route, MethodDescriptor methodDescriptor, Handler<RoutingContext> handler) {
         List<RouteInterceptor> interceptors = processResult.getRouteInterceptors().stream()
-            .filter(routeInterceptor -> routeInterceptor.matches(route))
-            .sorted(AnnotationAwareOrderComparator.INSTANCE)
-            .collect(Collectors.toList());
+                .filter(routeInterceptor -> routeInterceptor.matches(route))
+                .sorted(AnnotationAwareOrderComparator.INSTANCE)
+                .collect(Collectors.toList());
         HandlerMethod handlerMethod = new HandlerMethod(
-            methodDescriptor.getMethod(),
-            methodDescriptor.getRouterDescriptor().getClazz(),
-            methodDescriptor.getRouterDescriptor().getInstance()
+                methodDescriptor.getMethod(),
+                methodDescriptor.getRouterDescriptor().getClazz(),
+                methodDescriptor.getRouterDescriptor().getInstance()
         );
 
         // body处理器
-        route.handler(BodyHandler.create());
+        BodyHandler bodyHandler = BodyHandler.create();
+        if (properties.getBodyLimit() != null) {
+            bodyHandler.setBodyLimit(properties.getBodyLimit().toBytes());
+        }
+        route.handler(bodyHandler);
         // 前置处理器
         interceptors.forEach(interceptor -> route.handler(ctx -> interceptor.preHandle(ctx, handlerMethod)));
         // 业务处理器
@@ -297,4 +327,5 @@ public class HttpRouterGenerator {
             }
         };
     }
+
 }
