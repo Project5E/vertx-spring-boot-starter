@@ -4,6 +4,7 @@ import cn.hutool.core.convert.BasicType;
 import cn.hutool.core.util.EnumUtil;
 import cn.hutool.core.util.TypeUtil;
 import com.project5e.vertx.web.annotation.*;
+import com.project5e.vertx.web.service.BaseMethod;
 import com.project5e.vertx.web.service.MethodDescriptor;
 import com.project5e.vertx.web.service.ProcessResult;
 import com.project5e.vertx.web.service.RouterDescriptor;
@@ -103,7 +104,7 @@ public class VertxSwaggerReader {
         }
         // 正式解析
         for (MethodDescriptor methodDescriptor : routerDescriptor.getMethodDescriptors()) {
-            if (isOperationHidden(methodDescriptor.getMethod())) {
+            if (isOperationHidden(methodDescriptor.getBaseMethod().getMethod())) {
                 continue;
             }
             for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
@@ -169,7 +170,8 @@ public class VertxSwaggerReader {
         MethodDescriptor methodDescriptor, List<Server> classServers, Set<String> classTags,
         List<io.swagger.v3.oas.annotations.responses.ApiResponse> classResponses
     ) {
-        Method method = methodDescriptor.getMethod();
+        BaseMethod baseMethod = methodDescriptor.getBaseMethod();
+        Method method = baseMethod.getMethod();
         Operation operation = new Operation();
 
         io.swagger.v3.oas.annotations.Operation apiOperation = ReflectionUtils.getAnnotation(method, io.swagger.v3.oas.annotations.Operation.class);
@@ -188,7 +190,7 @@ public class VertxSwaggerReader {
         }
 
         // operationId
-        String defaultOperationId = methodDescriptor.getMethod().getName();
+        String defaultOperationId = method.getName();
         if (operationIdCache.containsKey(defaultOperationId)) {
             Integer currentRound = operationIdCache.get(defaultOperationId);
             operation.setOperationId(String.format("%s%d", defaultOperationId, currentRound));
@@ -237,7 +239,7 @@ public class VertxSwaggerReader {
     protected List<Parameter> parseParameters(MethodDescriptor methodDescriptor) {
         // TODO 待加入对swagger的Parameter注解的支持
         List<Parameter> parameters = new ArrayList<>();
-        for (java.lang.reflect.Parameter parameter : methodDescriptor.getParameters()) {
+        for (java.lang.reflect.Parameter parameter : methodDescriptor.getBaseMethod().getParameters()) {
             Schema<?> schema = getSchema(parameter.getType());
             RequestHeader requestHeader = parameter.getAnnotation(RequestHeader.class);
             if (requestHeader != null) {
@@ -266,8 +268,9 @@ public class VertxSwaggerReader {
     }
 
     protected io.swagger.v3.oas.models.parameters.RequestBody parseRequestBody(MethodDescriptor methodDescriptor) {
+        BaseMethod baseMethod = methodDescriptor.getBaseMethod();
         List<java.lang.reflect.Parameter> parametersAnnotatedWithRequestBody = Arrays
-            .stream(methodDescriptor.getParameters())
+            .stream(baseMethod.getParameters())
             .filter(p -> p.isAnnotationPresent(RequestBody.class))
             .collect(Collectors.toList());
         if (parametersAnnotatedWithRequestBody.size() == 0) {
@@ -276,7 +279,7 @@ public class VertxSwaggerReader {
         // 当出现多个RequestBody注解时，只取第一个，其它直接忽略
         if (parametersAnnotatedWithRequestBody.size() > 1) {
             log.warn("{} has more than one io.vertx.webpro.core.annotation.RequestBody annotation, ignore others except the first one"
-                , methodDescriptor.getMethod().getName());
+                , baseMethod.getMethod().getName());
         }
         java.lang.reflect.Parameter parameterAnnotatedWithRequestBody = parametersAnnotatedWithRequestBody.get(0);
         Schema<?> schema = null;
@@ -304,8 +307,9 @@ public class VertxSwaggerReader {
     ) {
         ApiResponses apiResponsesObject = new ApiResponses();
 
+        BaseMethod baseMethod = methodDescriptor.getBaseMethod();
         // 方法返回值
-        Type returnActualType = methodDescriptor.getActualType();
+        Type returnActualType = baseMethod.getActualType();
         Schema<?> schema;
         if (returnActualType instanceof ParameterizedType) {
             ResolvedSchema resolvedSchema = ModelConverters.getInstance().resolveAsResolvedSchema(
@@ -320,7 +324,7 @@ public class VertxSwaggerReader {
         ApiResponse methodResponse = new ApiResponse();
         // TODO 处理更多种返回类型
         final String mediaType;
-        if (TypeUtil.getClass(methodDescriptor.getActualType()).equals(String.class)) {
+        if (TypeUtil.getClass(baseMethod.getActualType()).equals(String.class)) {
             mediaType = "text/plain";
         } else {
             mediaType = "application/json";

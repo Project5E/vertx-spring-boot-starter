@@ -14,6 +14,7 @@ import com.project5e.vertx.web.intercepter.RouteInterceptor;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
@@ -114,9 +115,9 @@ public class HttpRouterGenerator implements ApplicationContextAware {
                 .sorted(AnnotationAwareOrderComparator.INSTANCE)
                 .collect(Collectors.toList());
         HandlerMethod handlerMethod = new HandlerMethod(
-                methodDescriptor.getMethod(),
                 methodDescriptor.getRouterDescriptor().getClazz(),
-                methodDescriptor.getRouterDescriptor().getInstance()
+                methodDescriptor.getRouterDescriptor().getInstance(),
+                methodDescriptor.getBaseMethod()
         );
 
         // body处理器
@@ -149,7 +150,8 @@ public class HttpRouterGenerator implements ApplicationContextAware {
             return false;
         }).findFirst().orElse(null);
         if (advice != null) {
-            Parameter[] parameters = advice.getParameters();
+            BaseMethod baseMethod = advice.getBaseMethod();
+            Parameter[] parameters = baseMethod.getParameters();
             Object[] objects = new Object[parameters.length];
             for (int i = 0; i < parameters.length; i++) {
                 Parameter parameter = parameters[i];
@@ -159,8 +161,8 @@ public class HttpRouterGenerator implements ApplicationContextAware {
                     objects[i] = ctx;
                 }
             }
-            Future<?> result = (Future<?>) advice.getMethod().invoke(advice.getInstance(), objects);
-            dealResponse(ctx, advice.getActualType(), result);
+            Future<?> result = (Future<?>) baseMethod.getMethod().invoke(advice.getInstance(), objects);
+            dealResponse(ctx, baseMethod.getActualType(), result);
             return;
         }
         e.printStackTrace();
@@ -172,9 +174,11 @@ public class HttpRouterGenerator implements ApplicationContextAware {
     }
 
     private void handleRequest(MethodDescriptor methodDescriptor, RoutingContext ctx) throws Exception {
-        Method method = methodDescriptor.getMethod();
-        Parameter[] parameters = methodDescriptor.getParameters();
+        BaseMethod baseMethod = methodDescriptor.getBaseMethod();
+        Method method = baseMethod.getMethod();
+        Parameter[] parameters = baseMethod.getParameters();
         Object[] objects = new Object[parameters.length];
+        Promise<Object> promiseResult = null;
         for (int i = 0; i < parameters.length; i++) {
             Parameter parameter = parameters[i];
             Class<?> type = parameter.getType();
@@ -184,18 +188,29 @@ public class HttpRouterGenerator implements ApplicationContextAware {
             dealRequestBody(ctx, objects, i, parameter, type);
             // 处理没有被注解的参数
             if (objects[i] == null) {
-                if (RoutingContext.class.isAssignableFrom(parameter.getType())) {
+                if (Promise.class.isAssignableFrom(parameter.getType())) {
+                    if (baseMethod.getMethodType() == BaseMethodType.PARAM_RESULT) {
+                        objects[i] = promiseResult = Promise.promise();
+                    }
+                } else if (RoutingContext.class.isAssignableFrom(parameter.getType())) {
                     objects[i] = ctx;
                 }
             }
         }
 
-        if (ClassUtil.isAssignable(Future.class, methodDescriptor.getReturnType().getClass())) {
+        if (baseMethod.getMethodType() == BaseMethodType.RETURN_RESULT
+                && ClassUtil.isAssignable(Future.class, baseMethod.getReturnType().getClass())) {
             throw new ReturnTypeWrongException();
         }
         // Write to the response and end it
-        Future<?> result = (Future<?>) method.invoke(methodDescriptor.getRouterDescriptor().getInstance(), objects);
-        dealResponse(ctx, methodDescriptor.getActualType(), result);
+        Object invokeResult = method.invoke(methodDescriptor.getRouterDescriptor().getInstance(), objects);
+        Future<?> returnResult;
+        if (baseMethod.getMethodType() == BaseMethodType.RETURN_RESULT) {
+            returnResult = (Future<?>) invokeResult;
+        } else {
+            returnResult = promiseResult.future();
+        }
+        dealResponse(ctx, baseMethod.getActualType(), returnResult);
     }
 
     private void dealRequestHeader(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {

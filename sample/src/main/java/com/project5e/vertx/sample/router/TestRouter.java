@@ -6,12 +6,15 @@ import com.project5e.vertx.sample.router.dto.SomeType;
 import com.project5e.vertx.web.annotation.*;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -90,6 +93,12 @@ public class TestRouter {
     public Future<Integer> error1() {
         int a = 1/0;
         return Future.succeededFuture(a);
+    }
+
+    @GetMapping(value = "/json1")
+    @ApiResponse(responseCode = "200")
+    public Future<JsonObject> json1() {
+        return Future.succeededFuture(new JsonObject().put("a", 1).put("b", "abc"));
     }
 
 }

@@ -92,7 +92,7 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
                     if (ArrayUtils.isEmpty(careThrows)) {
                         careThrows = new Class[]{Throwable.class};
                     }
-                    result.addAdviceDescriptor(new RouterAdviceDescriptor(careThrows, bean).setMethod(method));
+                    result.addAdviceDescriptor(new RouterAdviceDescriptor(careThrows, bean, method));
                 }
             }
 

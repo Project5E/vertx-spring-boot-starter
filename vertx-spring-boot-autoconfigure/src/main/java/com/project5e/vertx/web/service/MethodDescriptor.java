@@ -1,6 +1,7 @@
 package com.project5e.vertx.web.service;
 
 import com.project5e.vertx.web.annotation.HttpMethod;
+import io.vertx.core.Promise;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -21,20 +22,10 @@ public class MethodDescriptor {
     private String[] paths;
     private HttpMethod[] httpMethods;
 
-    // get from reflect
-    private Method method;
-    private Parameter[] parameters;
-    private Type returnType; // Future<T>
-    private Type actualType; // T
+    private BaseMethod baseMethod;
 
     public void setMethod(Method method) {
-        this.method = method;
-        this.parameters = method.getParameters();
-        this.returnType = method.getGenericReturnType();
-        Type[] actualTypeArguments = ((ParameterizedType) this.returnType).getActualTypeArguments();
-        if (actualTypeArguments.length > 0) {
-            actualType = actualTypeArguments[0];
-        }
+        baseMethod = new BaseMethod(method);
     }
 
 }
