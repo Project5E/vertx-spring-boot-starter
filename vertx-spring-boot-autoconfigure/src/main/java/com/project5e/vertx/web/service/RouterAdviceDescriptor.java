@@ -1,13 +1,9 @@
 package com.project5e.vertx.web.service;
 
+import com.project5e.vertx.web.component.BaseMethod;
 import lombok.Data;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 
 @Data
 public class RouterAdviceDescriptor {

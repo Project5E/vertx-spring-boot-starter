@@ -6,7 +6,9 @@ import cn.hutool.core.util.TypeUtil;
 import cn.hutool.http.ContentType;
 import com.project5e.vertx.web.annotation.*;
 import com.project5e.vertx.web.autoconfigure.VertxWebProperties;
-import com.project5e.vertx.web.exception.AnnotationEmptyValueException;
+import com.project5e.vertx.web.component.BaseMethod;
+import com.project5e.vertx.web.component.BaseMethodType;
+import com.project5e.vertx.web.component.ResponseEntity;
 import com.project5e.vertx.web.exception.MappingDuplicateException;
 import com.project5e.vertx.web.exception.ReturnTypeWrongException;
 import com.project5e.vertx.web.intercepter.HandlerMethod;
@@ -19,6 +21,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -26,6 +29,7 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
@@ -34,7 +38,6 @@ import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.lang.reflect.Type;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -87,7 +90,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
             for (MethodDescriptor methodDescriptor : routerDescriptor.getMethodDescriptors()) {
                 for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
                     for (String path : methodDescriptor.getPaths()) {
-                        Route route = router.route(io.vertx.core.http.HttpMethod.valueOf(httpMethod.name()), path);
+                        Route route = router.route(io.vertx.core.http.HttpMethod.valueOf(httpMethod.name()), fixPath(path));
                         Handler<RoutingContext> businessHandler = ctx -> {
                             try {
                                 handleRequest(methodDescriptor, ctx);
@@ -162,7 +165,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
                 }
             }
             Future<?> result = (Future<?>) baseMethod.getMethod().invoke(advice.getInstance(), objects);
-            dealResponse(ctx, baseMethod.getActualType(), result);
+            dealResponse(ctx, baseMethod, result);
             return;
         }
         e.printStackTrace();
@@ -204,13 +207,16 @@ public class HttpRouterGenerator implements ApplicationContextAware {
         }
         // Write to the response and end it
         Object invokeResult = method.invoke(methodDescriptor.getRouterDescriptor().getInstance(), objects);
-        Future<?> returnResult;
-        if (baseMethod.getMethodType() == BaseMethodType.RETURN_RESULT) {
-            returnResult = (Future<?>) invokeResult;
-        } else {
-            returnResult = promiseResult.future();
+        Future<?> returnResult = null;
+        switch (baseMethod.getMethodType()) {
+            case RETURN_RESULT:
+                returnResult = (Future<?>) invokeResult;
+                break;
+            case PARAM_RESULT:
+                returnResult = promiseResult.future();
+                break;
         }
-        dealResponse(ctx, baseMethod.getActualType(), returnResult);
+        dealResponse(ctx, baseMethod, returnResult);
     }
 
     private void dealRequestHeader(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {
@@ -222,6 +228,9 @@ public class HttpRouterGenerator implements ApplicationContextAware {
         }
     }
 
+    /**
+     * RequestBody 能承接 url 参数
+     */
     private void dealRequestBody(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {
         RequestBody requestBody = parameter.getAnnotation(RequestBody.class);
         if (requestBody != null) {
@@ -232,10 +241,33 @@ public class HttpRouterGenerator implements ApplicationContextAware {
                 JsonArray bodyAsJsonArray = ctx.getBodyAsJsonArray();
                 objects[i] = bodyAsJsonArray.getList().toArray();
             } else {
-                Object o = ctx.getBodyAsJson().mapTo(type);
-                objects[i] = o;
+                // json
+                JsonObject json = ctx.getBodyAsJson();
+                if (json == null) {
+                    json = getQueryJson(ctx);
+                }
+                if (type == JsonObject.class) {
+                    objects[i] = json;
+                } else {
+                    objects[i] = json.mapTo(type);
+                }
             }
         }
+    }
+
+    private JsonObject getQueryJson(RoutingContext ctx) {
+        JsonObject object = new JsonObject();
+        for (String name : ctx.queryParams().names()) {
+            List<String> values = ctx.queryParams().getAll(name);
+            if (CollectionUtils.isEmpty(values)) {
+                object.putNull(name);
+            } else if (values.size() == 1) {
+                object.put(name, values.get(0));
+            } else {
+                object.put(name, values);
+            }
+        }
+        return object;
     }
 
     private void dealRequestParam(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {
@@ -243,7 +275,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
         if (requestParam != null) {
             String value = requestParam.value().trim();
             if (StringUtils.isBlank(value)) {
-                throw new AnnotationEmptyValueException();
+                value = parameter.getName();
             }
             List<String> params = ctx.queryParam(value);
             if (Collection.class.isAssignableFrom(type)) {
@@ -265,7 +297,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
         if (pathVariable != null) {
             String value = pathVariable.value().trim();
             if (StringUtils.isBlank(value)) {
-                throw new AnnotationEmptyValueException();
+                value = parameter.getName();
             }
             String param = ctx.pathParam(value);
             objects[i] = baseTypeConvert(type, param);
@@ -297,35 +329,28 @@ public class HttpRouterGenerator implements ApplicationContextAware {
         return null;
     }
 
-    private void dealResponse(RoutingContext ctx, Type type, Future<?> result) {
+    private void dealResponse(RoutingContext ctx, BaseMethod baseMethod, Future<?> future) {
         HttpServerResponse response = ctx.response();
         if (response.ended()) {
             return;
         }
-        ContentType contentType;
-        Class<?> clz = TypeUtil.getClass(type);
-        if (clz == null || clz.isPrimitive() || ClassUtil.isPrimitiveWrapper(clz) || CharSequence.class.isAssignableFrom(clz)) {
-            contentType = ContentType.TEXT_PLAIN;
-        } else {
-            contentType = ContentType.JSON;
-        }
-        result.onComplete(ar -> {
+        future.onComplete(ar -> {
+            Object result = ar.result();
             OperationResult operationResult = new OperationResult();
             operationResult.setSucceed(ar.succeeded());
             operationResult.setCause(ar.cause());
-            operationResult.setContentType(contentType);
-            if (ar.succeeded()) {
-                switch (contentType) {
-                    case JSON:
-                        operationResult.setChunk(Json.encode(ar.result()));
-                        break;
-                    case TEXT_PLAIN:
-                        operationResult.setChunk(StrUtil.toString(ar.result()));
-                        break;
-                    default:
-                        operationResult.setChunk(null);
+            ResponseEntity<?> entity;
+            if (baseMethod.isWrapped()) {
+                entity = (ResponseEntity<?>) result;
+            } else {
+                Class<?> clz = TypeUtil.getClass(baseMethod.getActualType());
+                if (clz == null || clz.isPrimitive() || ClassUtil.isPrimitiveWrapper(clz) || CharSequence.class.isAssignableFrom(clz)) {
+                    entity = ResponseEntity.completeWithPlainText(result == null ? null : StrUtil.toString(result));
+                } else {
+                    entity = ResponseEntity.completeWithJson(result);
                 }
             }
+            operationResult.setResponseEntity(entity);
             ctx.put(OPERATION_RESULT_KEY, operationResult);
             ctx.next();
         });
@@ -335,12 +360,32 @@ public class HttpRouterGenerator implements ApplicationContextAware {
         return ctx -> {
             OperationResult operationResult = ctx.get(OPERATION_RESULT_KEY);
             if (operationResult.getSucceed()) {
-                ctx.response().putHeader("content-type", operationResult.getContentType().getValue());
-                ctx.response().end(operationResult.getChunk());
+                HttpServerResponse response = ctx.response();
+                ResponseEntity<?> entity = operationResult.getResponseEntity();
+                response.setStatusCode(entity.getStatus());
+                if (StringUtils.isNotBlank(entity.getStatusMessage())) {
+                    response.setStatusMessage(entity.getStatusMessage());
+                }
+                if (entity.getHeaders() != null) {
+                    response.headers().addAll(entity.getHeaders());
+                }
+                if (entity.getPayload() == null) {
+                    response.end();
+                } else {
+                    if(entity.getContentType() == ContentType.JSON){
+                        response.end(Json.encode(entity.getPayload()));
+                    } else {
+                        response.end((String) entity.getPayload());
+                    }
+                }
             } else {
                 ctx.fail(HttpResponseStatus.INTERNAL_SERVER_ERROR.code(), operationResult.getCause());
             }
         };
+    }
+
+    private String fixPath(String path) {
+        return path.replaceAll("\\{", ":").replaceAll("}", "");
     }
 
 }

@@ -4,7 +4,7 @@ import cn.hutool.core.convert.BasicType;
 import cn.hutool.core.util.EnumUtil;
 import cn.hutool.core.util.TypeUtil;
 import com.project5e.vertx.web.annotation.*;
-import com.project5e.vertx.web.service.BaseMethod;
+import com.project5e.vertx.web.component.BaseMethod;
 import com.project5e.vertx.web.service.MethodDescriptor;
 import com.project5e.vertx.web.service.ProcessResult;
 import com.project5e.vertx.web.service.RouterDescriptor;

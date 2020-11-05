@@ -49,9 +49,15 @@ public class TestRouter {
     }
 
     @Operation
-    @RequestMapping(value = "/get2/:id", method = HttpMethod.GET)
+    @RequestMapping(value = "/get2/{id}", method = HttpMethod.GET)
     public Future<String> get2(@PathVariable("id") Integer id) {
         return Future.succeededFuture(String.valueOf(id));
+    }
+
+    @Operation
+    @RequestMapping(value = "/get2/{id}/:move", method = HttpMethod.GET)
+    public Future<String> get2move(@PathVariable("id") Integer id) {
+        return Future.succeededFuture(id + "move");
     }
 
     @Operation

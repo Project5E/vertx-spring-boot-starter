@@ -71,6 +71,7 @@ subprojects { project ->
         testImplementation('org.springframework.boot:spring-boot-starter-test') {
             exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
         }
+        api 'org.springframework.boot:spring-boot-starter-validation'
 
         // vertx
         compileOnly "io.vertx:vertx-core:$vertxVersion"

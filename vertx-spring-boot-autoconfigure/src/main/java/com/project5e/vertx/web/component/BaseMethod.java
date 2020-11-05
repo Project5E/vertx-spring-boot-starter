@@ -1,4 +1,4 @@
-package com.project5e.vertx.web.service;
+package com.project5e.vertx.web.component;
 
 import io.vertx.core.Promise;
 import lombok.Data;
@@ -20,16 +20,24 @@ public class BaseMethod {
     private Type resultParamType; //Promise<T>
     private Type returnType; // Future<T>
     private Type actualType; // T
+    private boolean wrapped; // ResponseEntity wrapped
 
     public BaseMethod(Method method) {
         this.method = method;
         parameters = method.getParameters();
-        findResultParameter();
         returnType = method.getGenericReturnType();
+        checkReturnLocation();
         findActualType();
     }
 
-    private void findResultParameter() {
+    /**
+     * 以 return 为主
+     */
+    private void checkReturnLocation() {
+        if (!returnType.equals(Void.TYPE)) {
+            methodType = BaseMethodType.RETURN_RESULT;
+            return;
+        }
         for (Parameter parameter : parameters) {
             if (parameter.getType() == Promise.class) {
                 // 结果将放在参数 Promise 中
@@ -39,7 +47,6 @@ public class BaseMethod {
                 return;
             }
         }
-        methodType = BaseMethodType.RETURN_RESULT;
     }
 
     // 只取第一个泛型
@@ -55,12 +62,24 @@ public class BaseMethod {
             default:
                 return;
         }
+        actualType = getFirstType(type);
+        if (actualType instanceof ParameterizedType) {
+            Type rawType = ((ParameterizedType) actualType).getRawType();
+            if (rawType == ResponseEntity.class) {
+                wrapped = true;
+                actualType = getFirstType(actualType);
+            }
+        }
+    }
+
+    private Type getFirstType(Type type) {
         if (type instanceof ParameterizedType) {
             Type[] actualTypeArguments = ((ParameterizedType) type).getActualTypeArguments();
             if (actualTypeArguments.length > 0) {
-                actualType = actualTypeArguments[0];
+                return actualTypeArguments[0];
             }
         }
+        return null;
     }
 
 }

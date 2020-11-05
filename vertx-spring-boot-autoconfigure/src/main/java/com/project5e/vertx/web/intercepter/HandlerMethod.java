@@ -1,6 +1,6 @@
 package com.project5e.vertx.web.intercepter;
 
-import com.project5e.vertx.web.service.BaseMethod;
+import com.project5e.vertx.web.component.BaseMethod;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

@@ -12,6 +12,8 @@ public class VertxWebProperties {
 
     private int port = 8080;
 
+    private String contextPath;
+
     private DataSize bodyLimit = null;
 
 }
