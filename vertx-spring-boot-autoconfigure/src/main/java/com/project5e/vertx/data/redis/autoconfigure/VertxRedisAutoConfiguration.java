@@ -1,8 +1,8 @@
 package com.project5e.vertx.data.redis.autoconfigure;
 
 import com.project5e.vertx.data.redis.exception.IllegalRedisPropertiesException;
-import com.project5e.vertx.data.redis.exception.RedisNodeEmptyException;
 import com.project5e.vertx.data.redis.exception.RedisConnectionCreateTimeoutException;
+import com.project5e.vertx.data.redis.exception.RedisNodeEmptyException;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.redis.client.*;
@@ -26,7 +26,6 @@ import org.springframework.context.annotation.Configuration;
 
 import javax.annotation.PostConstruct;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
