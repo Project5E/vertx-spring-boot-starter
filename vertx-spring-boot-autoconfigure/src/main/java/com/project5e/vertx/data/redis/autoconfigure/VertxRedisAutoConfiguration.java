@@ -26,6 +26,7 @@ import org.springframework.context.annotation.Configuration;
 
 import javax.annotation.PostConstruct;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -202,9 +203,12 @@ public class VertxRedisAutoConfiguration implements ApplicationContextAware {
             if (ArrayUtils.isEmpty(sentinel.getNodes())) {
                 throw new RedisNodeEmptyException();
             }
+
+            List<String> endpoints = new ArrayList<>(sentinel.getNodes().length);
             for (String node : sentinel.getNodes()) {
-                options.addConnectionString(node);
+                endpoints.add(CONNECTION_PROTOCOL + node);
             }
+            options.setEndpoints(endpoints);
 
             options.setMasterName(sentinel.getMasterName());
         }
@@ -223,7 +227,7 @@ public class VertxRedisAutoConfiguration implements ApplicationContextAware {
     }
 
     /**
-     * check properties illegally
+     * check properties
      *
      * @return false:throw {@link com.project5e.vertx.data.redis.exception.IllegalRedisPropertiesException}
      */
