@@ -78,6 +78,7 @@ subprojects { project ->
         compileOnly "io.vertx:vertx-codegen:$vertxVersion:processor"
         compileOnly "io.vertx:vertx-web:${vertxVersion}"
         compileOnly "io.vertx:vertx-pg-client:$vertxVersion"
+        compileOnly ("io.vertx:vertx-redis-client:$vertxVersion")
 
 
         // lombok

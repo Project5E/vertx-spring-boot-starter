@@ -1,0 +1,17 @@
+plugins {
+    id 'java'
+}
+
+group 'com.github.Project5E'
+version = projectVersion
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api project(":vertx-spring-boot-starter")
+    api("io.vertx:vertx-redis-client:$vertxVersion")
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
