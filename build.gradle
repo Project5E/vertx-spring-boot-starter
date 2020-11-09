@@ -6,7 +6,7 @@ buildscript {
     }
     ext {
         projectVersion = '0.1.0.RELEASE'
-        vertxVersion = '4.0.0.Beta3'
+        vertxVersion = '4.0.0.CR1'
         springBootVersion = '2.3.3.RELEASE'
     }
 }

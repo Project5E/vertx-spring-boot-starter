@@ -340,7 +340,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
             operationResult.setSucceed(ar.succeeded());
             operationResult.setCause(ar.cause());
             ResponseEntity<?> entity;
-            if (baseMethod.isWrapped()) {
+            if (baseMethod.isWrapped() && result != null) {
                 entity = (ResponseEntity<?>) result;
             } else {
                 Class<?> clz = TypeUtil.getClass(baseMethod.getActualType());
@@ -362,20 +362,25 @@ public class HttpRouterGenerator implements ApplicationContextAware {
             if (operationResult.getSucceed()) {
                 HttpServerResponse response = ctx.response();
                 ResponseEntity<?> entity = operationResult.getResponseEntity();
-                response.setStatusCode(entity.getStatus());
-                if (StringUtils.isNotBlank(entity.getStatusMessage())) {
-                    response.setStatusMessage(entity.getStatusMessage());
-                }
-                if (entity.getHeaders() != null) {
-                    response.headers().addAll(entity.getHeaders());
-                }
-                if (entity.getPayload() == null) {
+                if (entity == null) {
                     response.end();
                 } else {
-                    if(entity.getContentType() == ContentType.JSON){
-                        response.end(Json.encode(entity.getPayload()));
+                    response.setStatusCode(entity.getStatus());
+                    if (StringUtils.isNotBlank(entity.getStatusMessage())) {
+                        response.setStatusMessage(entity.getStatusMessage());
+                    }
+                    if (entity.getHeaders() != null) {
+                        response.headers().addAll(entity.getHeaders());
+                    }
+                    Object payload = entity.getPayload();
+                    if (payload == null) {
+                        response.end();
                     } else {
-                        response.end((String) entity.getPayload());
+                        if (entity.getContentType() == ContentType.JSON) {
+                            response.end(Json.encode(payload));
+                        } else {
+                            response.end((String) payload);
+                        }
                     }
                 }
             } else {
