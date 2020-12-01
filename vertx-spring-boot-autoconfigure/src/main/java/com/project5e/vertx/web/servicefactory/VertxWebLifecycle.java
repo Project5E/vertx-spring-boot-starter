@@ -1,7 +1,6 @@
 package com.project5e.vertx.web.servicefactory;
 
 import com.project5e.vertx.web.autoconfigure.VertxWebProperties;
-import com.project5e.vertx.web.service.HttpRouterGenerator;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.Router;
@@ -18,9 +17,9 @@ public class VertxWebLifecycle implements SmartLifecycle {
 
     private boolean running;
 
-    public VertxWebLifecycle(Vertx vertx, HttpRouterGenerator generator, VertxWebProperties properties) {
+    public VertxWebLifecycle(Vertx vertx, Router router, VertxWebProperties properties) {
         this.vertx = vertx;
-        this.router = generator.generate();
+        this.router = router;
         this.properties = properties;
         this.server = vertx.createHttpServer();
     }

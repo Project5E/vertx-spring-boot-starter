@@ -1,7 +1,5 @@
 package com.project5e.vertx.swagger.service;
 
-import cn.hutool.core.convert.BasicType;
-import cn.hutool.core.util.EnumUtil;
 import cn.hutool.core.util.TypeUtil;
 import com.project5e.vertx.web.annotation.*;
 import com.project5e.vertx.web.component.BaseMethod;
@@ -10,7 +8,6 @@ import com.project5e.vertx.web.service.ProcessResult;
 import com.project5e.vertx.web.service.RouterDescriptor;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverters;
-import io.swagger.v3.core.converter.ResolvedSchema;
 import io.swagger.v3.core.util.AnnotationsUtils;
 import io.swagger.v3.core.util.ReflectionUtils;
 import io.swagger.v3.oas.annotations.ExternalDocumentation;
@@ -27,12 +24,15 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
+import io.vertx.core.Promise;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl;
 
-import javax.validation.constraints.*;
-import java.lang.reflect.*;
-import java.math.BigDecimal;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -109,19 +109,17 @@ public class VertxSwaggerReader {
             }
             for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
                 for (String methodPath : methodDescriptor.getPaths()) {
-                    for (String classPath : classPaths) {
-                        String operationPath = getPath(classPath, methodPath);
-                        if (operationPath == null) {
-                            continue;
-                        }
-                        Operation operation = parseOperation(methodDescriptor, classServers, classTags, classResponses);
-                        if (operation == null) {
-                            continue;
-                        }
-                        String path = convertPath(operationPath);
-                        PathItem pathItem = openAPI.getPaths().computeIfAbsent(path, k -> new PathItem());
-                        fillPathItemWithOperation(pathItem, httpMethod, operation);
+                    // methodPath已经包含了类上的路径，因此不再需要去除classPaths
+                    if (methodPath == null) {
+                        continue;
                     }
+                    Operation operation = parseOperation(methodDescriptor, classServers, classTags, classResponses);
+                    if (operation == null) {
+                        continue;
+                    }
+                    String path = convertPath(methodPath);
+                    PathItem pathItem = openAPI.getPaths().computeIfAbsent(path, k -> new PathItem());
+                    fillPathItemWithOperation(pathItem, httpMethod, operation);
                 }
             }
         }
@@ -240,7 +238,11 @@ public class VertxSwaggerReader {
         // TODO 待加入对swagger的Parameter注解的支持
         List<Parameter> parameters = new ArrayList<>();
         for (java.lang.reflect.Parameter parameter : methodDescriptor.getBaseMethod().getParameters()) {
-            Schema<?> schema = getSchema(parameter.getType());
+            // 目前允许结果放在Promise或Future中，因此忽略参数中的Promise
+            if (parameter.getType().equals(Promise.class)) {
+                continue;
+            }
+            Schema<?> schema = getSchema(parameter.getParameterizedType());
             RequestHeader requestHeader = parameter.getAnnotation(RequestHeader.class);
             if (requestHeader != null) {
                 parameters.add(new HeaderParameter()
@@ -262,7 +264,6 @@ public class VertxSwaggerReader {
                     .schema(schema)
                     .required(pathVariable.required()));
             }
-            fillSchemaWithValidation(schema, parameter);
         }
         return parameters;
     }
@@ -308,28 +309,22 @@ public class VertxSwaggerReader {
         ApiResponses apiResponsesObject = new ApiResponses();
 
         BaseMethod baseMethod = methodDescriptor.getBaseMethod();
-        // 方法返回值
-        Type returnActualType = baseMethod.getActualType();
-        Schema<?> schema;
-        if (returnActualType instanceof ParameterizedType) {
-            ResolvedSchema resolvedSchema = ModelConverters.getInstance().resolveAsResolvedSchema(
-                new AnnotatedType(returnActualType));
-            schema = resolvedSchema.schema;
-        } else if (returnActualType instanceof Class) {
-            schema = getSchema((Class<?>) returnActualType);
-        } else {
-            throw new RuntimeException("未预期的返回值类型");
-        }
+
+        // 返回的具体类型，已在baseMethod中提取出来，无论是Promise参数还是Future，因此这里就不用管了。
+        Schema<?> schema = getSchema(baseMethod.getActualType());
+
         MediaType methodReturnMediaType = new MediaType().schema(schema);
         ApiResponse methodResponse = new ApiResponse();
-        // TODO 处理更多种返回类型
-        final String mediaType;
-        if (TypeUtil.getClass(baseMethod.getActualType()).equals(String.class)) {
-            mediaType = "text/plain";
-        } else {
-            mediaType = "application/json";
+        if (schema != null) {
+            // TODO 处理更多种返回类型
+            final String mediaType;
+            if (TypeUtil.getClass(baseMethod.getActualType()).equals(String.class)) {
+                mediaType = "text/plain";
+            } else {
+                mediaType = "application/json";
+            }
+            methodResponse.setContent(new Content().addMediaType(mediaType, methodReturnMediaType));
         }
-        methodResponse.setContent(new Content().addMediaType(mediaType, methodReturnMediaType));
         apiResponsesObject.addApiResponse("200", methodResponse);
 
         // 额外的注解
@@ -368,82 +363,36 @@ public class VertxSwaggerReader {
         return apiResponsesObject;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private Schema getSchema(Class<?> type) {
-        Class<?> wrapType = BasicType.wrap(type);
-        Schema schema;
-        if (Number.class.isAssignableFrom(wrapType)) {
-            schema = new NumberSchema();
-        } else if (CharSequence.class.isAssignableFrom(wrapType)) {
-            schema = new StringSchema();
-        } else if (wrapType.isEnum()) {
-            List<String> names = EnumUtil.getNames((Class<? extends Enum<?>>) wrapType);
-            schema = new StringSchema();
-            schema.setEnum(names);
-        } else if (wrapType.isArray()) {
-            Class<?> componentType = wrapType.getComponentType();
-            schema = new ArraySchema().items(getSchema(componentType));
-        } else if (wrapType == List.class) {
-            Type[] actualTypeArguments = ((ParameterizedType) wrapType.getGenericSuperclass()).getActualTypeArguments();
-            if (actualTypeArguments.length > 0) {
-                Type actualType = actualTypeArguments[0];
-                schema = new ArraySchema().items(getSchema(actualType.getClass()));
-            } else {
-                schema = new ArraySchema();
-            }
-        } else {
-            schema = new ObjectSchema();
-            Field[] fields = wrapType.getDeclaredFields();
-            for (Field field : fields) {
-                Schema<?> fieldSchema = getSchema(field.getType());
-                schema.addProperties(field.getName(), fieldSchema);
-                if (field.getAnnotation(NotNull.class) != null) {
-                    schema.addRequiredItem(field.getName());
-                }
-                fillSchemaWithValidation(fieldSchema, field);
-            }
-        }
-        return schema;
-    }
+    @SuppressWarnings({"rawtypes"})
+    private Schema getSchema(Type type) {
+        final Schema schema;
 
-    protected void fillSchemaWithValidation(Schema<?> schema, AnnotatedElement element) {
-        NotNull notNull = element.getAnnotation(NotNull.class);
-        schema.nullable(notNull == null);
-        Pattern pattern = element.getAnnotation(Pattern.class);
-        if (pattern != null) {
-            schema.pattern(pattern.regexp());
+        final Class<?> clazz;
+        final Type[] actualTypeArguments;
+
+        if (type instanceof ParameterizedTypeImpl) {
+            clazz = ((ParameterizedTypeImpl) type).getRawType();
+            actualTypeArguments = ((ParameterizedTypeImpl) type).getActualTypeArguments();
+        } else {
+            clazz = (Class<?>) type;
+            actualTypeArguments = new Type[]{};
         }
-        Size size = element.getAnnotation(Size.class);
-        if (size != null) {
-            schema.minLength(size.min());
-            schema.maxLength(size.max());
+
+        // 如下几个类型ModelConverters处理有问题，这里单独处理
+        if (clazz == JsonObject.class) {
+            schema = new ObjectSchema().description("我只能告诉你，这是一个对象，但对象内部结构未知");
+        } else if (clazz == JsonArray.class) {
+            schema = new ArraySchema().description("我只能告诉你，这是一个数组，但数组内部结构未知");
+        } else if (clazz == Void.class) {
+            schema = null;
+        } else if (clazz == List.class) {
+            schema = new ArraySchema().items(getSchema(actualTypeArguments[0]));
+        } else {
+            // ModelConverter逻辑过于复杂，考虑自己写一个符合自己的
+            schema = ModelConverters.getInstance().resolveAsResolvedSchema(new AnnotatedType(type)).schema;
         }
-        Min min = element.getAnnotation(Min.class);
-        if (min != null) {
-            schema.minimum(BigDecimal.valueOf(min.value()));
-        }
-        Max max = element.getAnnotation(Max.class);
-        if (max != null) {
-            schema.maximum(BigDecimal.valueOf(max.value()));
-        }
-        DecimalMin decimalMin = element.getAnnotation(DecimalMin.class);
-        if (decimalMin != null) {
-            schema.minimum(BigDecimal.valueOf(Long.parseLong(decimalMin.value())));
-        }
-        DecimalMax decimalMax = element.getAnnotation(DecimalMax.class);
-        if (decimalMax != null) {
-            schema.maximum(BigDecimal.valueOf(Long.parseLong(decimalMax.value())));
-        }
-        NotBlank notBlank = element.getAnnotation(NotBlank.class);
-        NotEmpty notEmpty = element.getAnnotation(NotEmpty.class);
-        if (notBlank != null || notEmpty != null) {
-            schema.nullable(false);
-            schema.minLength(1);
-        }
-        Email email = element.getAnnotation(Email.class);
-        if (email != null) {
-            schema.format("email");
-        }
+
+        return schema;
     }
 
     protected String getPath(String classPath, String methodPath) {
