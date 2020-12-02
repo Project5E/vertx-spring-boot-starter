@@ -12,7 +12,7 @@ import java.lang.annotation.*;
 @Mapping
 public @interface RequestMapping {
 
-    String[] value() default {};
+    String[] value() default {"/"};
 
     HttpMethod[] method() default {};
 

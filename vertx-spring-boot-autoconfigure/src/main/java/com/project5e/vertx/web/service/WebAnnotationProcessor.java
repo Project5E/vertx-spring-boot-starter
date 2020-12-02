@@ -43,8 +43,12 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
                 Object bean = applicationContext.getBean(beanName);
                 Class<?> clz = bean.getClass();
                 RequestMapping requestMappingAnnotation = applicationContext.findAnnotationOnBean(beanName, RequestMapping.class);
-                String[] rawParentPaths =
-                    requestMappingAnnotation != null ? requestMappingAnnotation.value() : new String[]{"/"};
+                String[] rawParentPaths;
+                if(requestMappingAnnotation != null && requestMappingAnnotation.value().length > 0){
+                    rawParentPaths = requestMappingAnnotation.value();
+                } else {
+                    rawParentPaths = new String[]{"/"};
+                }
                 for (String rawParentPath : rawParentPaths) {
                     String parentPath = handlePath(rawParentPath);
 

@@ -30,7 +30,7 @@ public class DbService implements IDbService {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            queryContent(4141, event -> log.info(event.result().encodePrettily()));
+            queryContent(4141, event -> log.info(event.result().encode().substring(0,20)));
         }).start();
     }
 

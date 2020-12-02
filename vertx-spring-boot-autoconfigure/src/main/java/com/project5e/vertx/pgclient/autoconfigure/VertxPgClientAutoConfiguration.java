@@ -5,7 +5,6 @@ import io.vertx.core.Vertx;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
-import io.vertx.sqlclient.SqlClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -17,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Slf4j
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnClass({Vertx.class, SqlClient.class})
+@ConditionalOnClass({Vertx.class, PgPool.class})
 @EnableConfigurationProperties(VertxPgClientProperties.class)
 @AutoConfigureAfter(VertxAutoConfiguration.class)
 public class VertxPgClientAutoConfiguration {

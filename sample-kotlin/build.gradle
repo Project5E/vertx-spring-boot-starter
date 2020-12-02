@@ -1,0 +1,9 @@
+version = '0.0.1-SNAPSHOT'
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    implementation "io.vertx:vertx-lang-kotlin:${vertxVersion}"
+    implementation "io.vertx:vertx-lang-kotlin-coroutines:${vertxVersion}"
+    implementation project(":vertx-web-spring-boot-starter")
+    implementation project(":vertx-pgclient-spring-boot-starter")
+}
