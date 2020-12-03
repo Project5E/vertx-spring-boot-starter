@@ -34,6 +34,7 @@ public class BaseMethod {
      * 以 return 为主
      */
     private void checkReturnLocation() {
+        // TODO 这里应该就判断是不是 Future 类型
         if (!returnType.equals(Void.TYPE)) {
             methodType = BaseMethodType.RETURN_RESULT;
             return;
@@ -51,6 +52,10 @@ public class BaseMethod {
 
     // 只取第一个泛型
     private void findActualType() {
+        if (methodType == null) {
+            // 可能是错误处理器的方法
+            return;
+        }
         Type type;
         switch (methodType) {
             case PARAM_RESULT:

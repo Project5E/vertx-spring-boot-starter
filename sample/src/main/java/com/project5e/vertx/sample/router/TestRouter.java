@@ -13,6 +13,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 
 import javax.validation.constraints.Min;
 import java.util.ArrayList;
@@ -64,8 +65,7 @@ public class TestRouter {
 
     @Operation
     @RequestMapping(value = "/post2", method = HttpMethod.POST)
-    public Future<Result<String>> post2(@RequestParam("id") String id,
-                                        @RequestBody Query query) {
+    public Future<Result<String>> post2(@Validated() @Min(5) @RequestParam("id") String id, @Validated @RequestBody Query query) {
         Result<String> result = new Result<>();
         result.setRequestId(query.getRequestId());
         result.setPage(query.getPage());

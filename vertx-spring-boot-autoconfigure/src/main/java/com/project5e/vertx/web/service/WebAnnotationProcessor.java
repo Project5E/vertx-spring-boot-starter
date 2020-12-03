@@ -71,7 +71,6 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
                         if (httpMethods.length == 0) {
                             throw new EmptyMethodsException();
                         }
-
                         MethodDescriptor methodDescriptor = new MethodDescriptor(routerDescriptor);
                         methodDescriptor.setPaths(paths);
                         methodDescriptor.setHttpMethods(httpMethods);

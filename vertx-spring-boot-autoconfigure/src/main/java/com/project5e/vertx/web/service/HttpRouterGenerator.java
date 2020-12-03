@@ -35,7 +35,13 @@ import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
+import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.validation.annotation.Validated;
 
+import javax.validation.*;
+import javax.validation.executable.ExecutableValidator;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.*;
@@ -52,6 +58,9 @@ public class HttpRouterGenerator implements ApplicationContextAware {
     private final ProcessResult processResult;
     private final VertxWebProperties properties;
     private Map<HttpMethod, Set<String>> existsPathMap;
+
+    private final ValidatorFactory validatorFactory = Validation.buildDefaultValidatorFactory();
+    private final Validator validator = validatorFactory.getValidator();
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
@@ -144,9 +153,14 @@ public class HttpRouterGenerator implements ApplicationContextAware {
 
     @SneakyThrows
     private void dealError(RoutingContext ctx, Throwable e) {
+        if(e instanceof InvocationTargetException){
+            InvocationTargetException invocationException = (InvocationTargetException) e;
+            e = invocationException.getTargetException();
+        }
+        Throwable finalE = e;
         RouterAdviceDescriptor advice = processResult.getAdviceDescriptors().stream().filter(adviceDescriptor -> {
             for (Class<? extends Throwable> careThrow : adviceDescriptor.getCareThrows()) {
-                if (careThrow.isAssignableFrom(e.getClass())) {
+                if (careThrow.isAssignableFrom(finalE.getClass())) {
                     return true;
                 }
             }
@@ -179,6 +193,14 @@ public class HttpRouterGenerator implements ApplicationContextAware {
     private void handleRequest(MethodDescriptor methodDescriptor, RoutingContext ctx) throws Exception {
         BaseMethod baseMethod = methodDescriptor.getBaseMethod();
         Method method = baseMethod.getMethod();
+        Object instance = methodDescriptor.getRouterDescriptor().getInstance();
+
+        // TODO 解析时 就该判断出来并报错
+        if (baseMethod.getMethodType() == BaseMethodType.RETURN_RESULT
+                && ClassUtil.isAssignable(Future.class, baseMethod.getReturnType().getClass())) {
+            throw new ReturnTypeWrongException();
+        }
+
         Parameter[] parameters = baseMethod.getParameters();
         Object[] objects = new Object[parameters.length];
         Promise<Object> promiseResult = null;
@@ -199,14 +221,29 @@ public class HttpRouterGenerator implements ApplicationContextAware {
                     objects[i] = ctx;
                 }
             }
+
+            // body 参数验证
+            for (Annotation ann : parameter.getAnnotations()) {
+                Validated validatedAnn = AnnotationUtils.getAnnotation(ann, Validated.class);
+                if (validatedAnn != null || ann.annotationType().getSimpleName().startsWith("Valid")) {
+                    Set<ConstraintViolation<Object>> violations = validator.validate(objects[i]);
+                    if (CollectionUtils.isNotEmpty(violations)) {
+                        throw new ConstraintViolationException(violations);
+                    }
+                }
+            }
+        }
+        // 方法参数验证
+        if (parameters.length > 0) {
+            ExecutableValidator execVal = validator.forExecutables();
+            Set<ConstraintViolation<Object>> violations = execVal.validateParameters(instance, method, objects);
+            if (CollectionUtils.isNotEmpty(violations)) {
+                throw new ConstraintViolationException(violations);
+            }
         }
 
-        if (baseMethod.getMethodType() == BaseMethodType.RETURN_RESULT
-                && ClassUtil.isAssignable(Future.class, baseMethod.getReturnType().getClass())) {
-            throw new ReturnTypeWrongException();
-        }
         // Write to the response and end it
-        Object invokeResult = method.invoke(methodDescriptor.getRouterDescriptor().getInstance(), objects);
+        Object invokeResult = method.invoke(instance, objects);
         Future<?> returnResult = null;
         switch (baseMethod.getMethodType()) {
             case RETURN_RESULT:
@@ -273,16 +310,21 @@ public class HttpRouterGenerator implements ApplicationContextAware {
     private void dealRequestParam(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {
         RequestParam requestParam = parameter.getAnnotation(RequestParam.class);
         if (requestParam != null) {
-            String value = requestParam.value().trim();
-            if (StringUtils.isBlank(value)) {
-                value = parameter.getName();
+            String paramName = requestParam.value().trim();
+            if (StringUtils.isBlank(paramName)) {
+                paramName = parameter.getName();
             }
-            List<String> params = ctx.queryParam(value);
+            List<String> params = ctx.queryParam(paramName);
             if (Collection.class.isAssignableFrom(type)) {
-                // 暂时只支持了 string
+                // TODO 暂时只支持了 string
+                // TODO 如果接受类型是 非LIST 类型可能会有问题
                 objects[i] = params;
             } else if (type.isArray()) {
                 objects[i] = params.toArray();
+            }
+            if (type.isEnum()) {
+                String param = params.get(0);
+                objects[i] = enumConvert(type, param);
             } else {
                 if (!params.isEmpty()) {
                     String param = params.get(0);
@@ -290,6 +332,25 @@ public class HttpRouterGenerator implements ApplicationContextAware {
                 }
             }
         }
+    }
+
+    private Enum<?> enumConvert(Class<?> type, String param){
+        Enum<?> resEnum = null;
+        for (Object enumConsObj : type.getEnumConstants()) {
+            Enum<?> enumCons = (Enum<?>) enumConsObj;
+            if (Objects.equals(enumCons.name(), param)) {
+                resEnum = enumCons;
+            } else {
+                try {
+                    int ord = Integer.parseInt(param);
+                    if (enumCons.ordinal() == ord) {
+                        resEnum = enumCons;
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return resEnum;
     }
 
     private void dealPathVariable(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {
@@ -305,6 +366,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
     }
 
     private Object baseTypeConvert(Class<?> type, String param) {
+        // TODO 对于基本类型 应该能使用 TYPE 来判断会简单些
         if (type == byte.class || type == Byte.class) {
             return Byte.valueOf(param);
         } else if (type == short.class || type == Short.class) {

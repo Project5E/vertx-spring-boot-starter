@@ -50,4 +50,12 @@ public class ResponseEntity<T> {
         return entity;
     }
 
+    public static ResponseEntity<String> completeWithPlainText(int status, String text) {
+        ResponseEntity entity = complete(status);
+        entity.headers.add(HttpHeaders.CONTENT_TYPE.toString(), ContentType.TEXT_PLAIN.getValue());
+        entity.setPayload(text);
+        entity.setContentType(ContentType.TEXT_PLAIN);
+        return entity;
+    }
+
 }

@@ -6,6 +6,7 @@ import com.project5e.vertx.web.annotation.RequestMapping;
 import com.project5e.vertx.web.annotation.Router;
 import com.project5e.vertx.web.component.ResponseEntity;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,11 @@ public class ErrorRouter {
     @GetMapping("/err2")
     public void err2(Promise<ResponseEntity<Query>> promise) {
         promise.complete(ResponseEntity.completeWithJson(300, new JsonObject().put("aa", 11)));
+    }
+
+    @GetMapping("/err3")
+    public Future<ResponseEntity<String>> err2() {
+        return Future.succeededFuture(ResponseEntity.completeWithPlainText(400, "some wrong?"));
     }
 
 }
