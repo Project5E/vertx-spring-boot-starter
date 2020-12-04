@@ -2,12 +2,14 @@ package com.project5e.vertx.swagger.service;
 
 import cn.hutool.core.util.TypeUtil;
 import com.project5e.vertx.swagger.annotation.SwaggerPage;
+import com.project5e.vertx.swagger.service.proxy.JacksonModelResolverProxy;
 import com.project5e.vertx.web.annotation.*;
 import com.project5e.vertx.web.component.BaseMethod;
 import com.project5e.vertx.web.service.MethodDescriptor;
 import com.project5e.vertx.web.service.ProcessResult;
 import com.project5e.vertx.web.service.RouterDescriptor;
 import io.swagger.v3.core.converter.AnnotatedType;
+import io.swagger.v3.core.converter.ModelConverter;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.converter.ResolvedSchema;
 import io.swagger.v3.core.util.AnnotationsUtils;
@@ -18,7 +20,9 @@ import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.integration.api.OpenAPIConfiguration;
 import io.swagger.v3.oas.models.*;
 import io.swagger.v3.oas.models.links.Link;
-import io.swagger.v3.oas.models.media.*;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.HeaderParameter;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.PathParameter;
@@ -30,8 +34,6 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
 import io.vertx.core.Promise;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -39,10 +41,30 @@ import javax.validation.constraints.*;
 import java.lang.reflect.*;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 @Slf4j
 public class VertxSwaggerReader {
+
+    static {
+        // 创建ModelConverter代理
+        ModelConverter converter = (ModelConverter) Proxy.newProxyInstance(
+            VertxSwaggerReader.class.getClassLoader(),
+            new Class[]{ModelConverter.class},
+            new JacksonModelResolverProxy());
+        // 创建converter列表，将代理加入其中
+        List<ModelConverter> converters = new CopyOnWriteArrayList<>();
+        converters.add(converter);
+        // 将新建的converter列表替换掉ModelConverters.INSTANCE中相应的属性
+        try {
+            Field converterField = ModelConverters.class.getDeclaredField("converters");
+            converterField.setAccessible(true);
+            converterField.set(ModelConverters.getInstance(), converters);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     private static final String PATH_DELIMITER = "/";
     public static final String DEFAULT_PAGE_KEY = "default";
@@ -370,7 +392,7 @@ public class VertxSwaggerReader {
         Schema<?> schema = null;
         RequestBody requestBodyAnnotation = parameterAnnotatedWithRequestBody.getAnnotation(RequestBody.class);
         if (requestBodyAnnotation != null) {
-            schema = getSchema(parameterAnnotatedWithRequestBody.getType());
+            schema = getSchema(parameterAnnotatedWithRequestBody.getParameterizedType());
         }
 
         io.swagger.v3.oas.models.parameters.RequestBody requestBody = new io.swagger.v3.oas.models.parameters.RequestBody();
@@ -451,32 +473,10 @@ public class VertxSwaggerReader {
     private Schema getSchema(Type type) {
         final Schema schema;
 
-        final Type clazz;
-        final Type[] actualTypeArguments;
-
-        if (type instanceof ParameterizedType) {
-            clazz = ((ParameterizedType) type).getRawType();
-            actualTypeArguments = ((ParameterizedType) type).getActualTypeArguments();
-        } else {
-            clazz = type;
-            actualTypeArguments = new Type[]{};
-        }
-
-        // 如下几个类型ModelConverters处理有问题，这里单独处理
-        if (clazz == JsonObject.class) {
-            schema = new ObjectSchema().description("我只能告诉你，这是一个对象，但对象内部结构未知");
-        } else if (clazz == JsonArray.class) {
-            schema = new ArraySchema().description("我只能告诉你，这是一个数组，但数组内部结构未知");
-        } else if (clazz == Void.class) {
-            schema = null;
-        } else if (clazz == List.class) {
-            schema = new ArraySchema().items(getSchema(actualTypeArguments[0]));
-        } else {
-            // ModelConverter逻辑过于复杂，考虑自己写一个符合自己的
-            ResolvedSchema resolvedSchema = ModelConverters.getInstance().resolveAsResolvedSchema(new AnnotatedType(type));
-            schema = resolvedSchema.schema;
-            resolvedSchema.referencedSchemas.forEach((key, item) -> openAPI.getComponents().addSchemas(key, item));
-        }
+        // ModelConverter逻辑过于复杂，考虑自己写一个符合自己的
+        ResolvedSchema resolvedSchema = ModelConverters.getInstance().resolveAsResolvedSchema(new AnnotatedType(type));
+        schema = resolvedSchema.schema;
+        resolvedSchema.referencedSchemas.forEach((key, item) -> openAPI.getComponents().addSchemas(key, item));
 
         return schema;
     }
@@ -551,8 +551,13 @@ public class VertxSwaggerReader {
     }
 
     protected void fillSchemaWithValidation(Schema<?> schema, AnnotatedElement element) {
+        if (schema == null) {
+            return;
+        }
         NotNull notNull = element.getAnnotation(NotNull.class);
-        schema.nullable(notNull == null);
+        if (notNull != null) {
+            schema.setNullable(true);
+        }
         Pattern pattern = element.getAnnotation(Pattern.class);
         if (pattern != null) {
             schema.pattern(pattern.regexp());
