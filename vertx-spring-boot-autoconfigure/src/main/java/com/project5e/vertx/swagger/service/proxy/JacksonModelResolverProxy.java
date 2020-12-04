@@ -17,6 +17,8 @@ import java.lang.reflect.Type;
 @Slf4j
 public class JacksonModelResolverProxy implements InvocationHandler {
 
+    private final static String MODEL_CONVERTER_METHOD = "resolve";
+
     // 真实的解析器
     private final Object delegate;
 
@@ -27,8 +29,7 @@ public class JacksonModelResolverProxy implements InvocationHandler {
     // 虚假的解析器
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        // 只对resolve做处理，其它方法直接略过
-        if (method.getName().equals("resolve")) {
+        if (method.getName().equals(MODEL_CONVERTER_METHOD)) {
             Type type = ((AnnotatedType) args[0]).getType();
             log.debug("Jackson ModelResolver invoked start, method: {}, type: {}", method.getName(), type.getTypeName());
 
@@ -41,9 +42,9 @@ public class JacksonModelResolverProxy implements InvocationHandler {
 
             Object schema;
             if (rawClazz == JsonObject.class) {
-                schema = new ObjectSchema().description("我只能告诉你，这是一个对象，但对象内部结构未知");
+                schema = new ObjectSchema().description("Json对象，内部结构未知");
             } else if (rawClazz == JsonArray.class) {
-                schema = new ArraySchema().description("我只能告诉你，这是一个数组，但数组内部结构未知");
+                schema = new ArraySchema().description("数组，内部结构未知");
             } else if (rawClazz == Void.class) {
                 schema = null;
             } else {

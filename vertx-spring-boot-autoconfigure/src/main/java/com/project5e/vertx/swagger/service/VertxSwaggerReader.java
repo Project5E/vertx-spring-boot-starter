@@ -49,13 +49,13 @@ public class VertxSwaggerReader {
 
     static {
         // 创建ModelConverter代理
-        ModelConverter converter = (ModelConverter) Proxy.newProxyInstance(
+        ModelConverter converterProxy = (ModelConverter) Proxy.newProxyInstance(
             VertxSwaggerReader.class.getClassLoader(),
             new Class[]{ModelConverter.class},
             new JacksonModelResolverProxy());
         // 创建converter列表，将代理加入其中
         List<ModelConverter> converters = new CopyOnWriteArrayList<>();
-        converters.add(converter);
+        converters.add(converterProxy);
         // 将新建的converter列表替换掉ModelConverters.INSTANCE中相应的属性
         try {
             Field converterField = ModelConverters.class.getDeclaredField("converters");
@@ -68,7 +68,6 @@ public class VertxSwaggerReader {
 
     private static final String PATH_DELIMITER = "/";
     public static final String DEFAULT_PAGE_KEY = "default";
-
 
     private final Map<String, Integer> operationIdCache = new HashMap<>();
     private final OpenAPI openAPI;
@@ -193,8 +192,7 @@ public class VertxSwaggerReader {
                     if (operation == null) {
                         continue;
                     }
-                    String path = convertPath(methodPath);
-                    PathItem pathItem = openAPI.getPaths().computeIfAbsent(path, k -> new PathItem());
+                    PathItem pathItem = openAPI.getPaths().computeIfAbsent(methodPath, k -> new PathItem());
                     fillPathItemWithOperation(pathItem, httpMethod, operation);
                 }
             }
@@ -595,20 +593,4 @@ public class VertxSwaggerReader {
         }
     }
 
-    /**
-     * /:id => /{id}
-     *
-     * @param path 路径
-     * @return 转换之后的路径
-     */
-    private String convertPath(String path) {
-        String[] split = path.split("/");
-        return Arrays.stream(split).map(s -> {
-            if (s.startsWith(":")) {
-                return "{" + s.substring(1) + "}";
-            } else {
-                return s;
-            }
-        }).collect(Collectors.joining("/"));
-    }
 }
