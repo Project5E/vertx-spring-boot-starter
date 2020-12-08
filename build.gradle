@@ -5,7 +5,7 @@ buildscript {
         }
     }
     ext {
-        projectVersion = '0.1.0.RELEASE'
+        projectVersion = '0.0.1-SNAPSHOT'
         vertxVersion = '4.0.0.CR1'
         springBootVersion = '2.3.3.RELEASE'
     }
@@ -109,5 +109,6 @@ subprojects { project ->
         compileOnly "io.swagger.core.v3:swagger-models:2.1.2"
         compileOnly "io.swagger.core.v3:swagger-annotations:2.1.2"
         compileOnly "io.swagger.core.v3:swagger-integration:2.1.2"
+        compileOnly "io.swagger.core.v3:swagger-jaxrs2:2.1.2"
     }
 }

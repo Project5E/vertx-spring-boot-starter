@@ -1,32 +1,39 @@
 package com.project5e.vertx.swagger.service;
 
-import cn.hutool.core.convert.BasicType;
-import cn.hutool.core.util.EnumUtil;
 import cn.hutool.core.util.TypeUtil;
+import com.project5e.vertx.swagger.annotation.SwaggerPage;
+import com.project5e.vertx.swagger.service.proxy.JacksonModelResolverProxy;
 import com.project5e.vertx.web.annotation.*;
 import com.project5e.vertx.web.component.BaseMethod;
 import com.project5e.vertx.web.service.MethodDescriptor;
 import com.project5e.vertx.web.service.ProcessResult;
 import com.project5e.vertx.web.service.RouterDescriptor;
 import io.swagger.v3.core.converter.AnnotatedType;
+import io.swagger.v3.core.converter.ModelConverter;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.converter.ResolvedSchema;
 import io.swagger.v3.core.util.AnnotationsUtils;
 import io.swagger.v3.core.util.ReflectionUtils;
+import io.swagger.v3.jaxrs2.SecurityParser;
 import io.swagger.v3.oas.annotations.ExternalDocumentation;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.integration.api.OpenAPIConfiguration;
 import io.swagger.v3.oas.models.*;
 import io.swagger.v3.oas.models.links.Link;
-import io.swagger.v3.oas.models.media.*;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.HeaderParameter;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.PathParameter;
 import io.swagger.v3.oas.models.parameters.QueryParameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
+import io.vertx.core.Promise;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -34,13 +41,33 @@ import javax.validation.constraints.*;
 import java.lang.reflect.*;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 @Slf4j
 public class VertxSwaggerReader {
 
-    private static final String PATH_DELIMITER = "/";
+    static {
+        // 创建ModelConverter代理
+        ModelConverter converterProxy = (ModelConverter) Proxy.newProxyInstance(
+            VertxSwaggerReader.class.getClassLoader(),
+            new Class[]{ModelConverter.class},
+            new JacksonModelResolverProxy());
+        // 创建converter列表，将代理加入其中
+        List<ModelConverter> converters = new CopyOnWriteArrayList<>();
+        converters.add(converterProxy);
+        // 将新建的converter列表替换掉ModelConverters.INSTANCE中相应的属性
+        try {
+            Field converterField = ModelConverters.class.getDeclaredField("converters");
+            converterField.setAccessible(true);
+            converterField.set(ModelConverters.getInstance(), converters);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
+    private static final String PATH_DELIMITER = "/";
+    public static final String DEFAULT_PAGE_KEY = "default";
 
     private final Map<String, Integer> operationIdCache = new HashMap<>();
     private final OpenAPI openAPI;
@@ -51,15 +78,33 @@ public class VertxSwaggerReader {
         openAPI.setComponents(new Components());
     }
 
+    public static List<String> parsePageKeys(ProcessResult processResult) {
+        Set<String> pageKeys = new HashSet<>();
+        for (RouterDescriptor routerDescriptor : processResult.getRouterDescriptors()) {
+            Class<?> cls = routerDescriptor.getClazz();
+            SwaggerPage page = ReflectionUtils.getAnnotation(cls, SwaggerPage.class);
+            String pageKey = page != null ? page.value() : DEFAULT_PAGE_KEY;
+            pageKeys.add(pageKey);
+        }
+        return pageKeys.stream().sorted().collect(Collectors.toList());
+    }
+
+    private String parsePageKey(RouterDescriptor routerDescriptor) {
+        SwaggerPage page = ReflectionUtils.getAnnotation(routerDescriptor.getClazz(), SwaggerPage.class);
+        return page != null ? page.value() : DEFAULT_PAGE_KEY;
+    }
+
     /**
      * 从Vertx-spring-Web的扫描结果中读取并构建OpenAPI对象
      *
      * @param processResult vertx-spring-web扫描对象
      * @return 返回OpenAPI对象
      */
-    public OpenAPI read(ProcessResult processResult) {
+    public OpenAPI read(ProcessResult processResult, String pageKey) {
         for (RouterDescriptor routerDescriptor : processResult.getRouterDescriptors()) {
-            read(routerDescriptor);
+            if (parsePageKey(routerDescriptor).equals(pageKey)) {
+                read(routerDescriptor);
+            }
         }
         return openAPI;
     }
@@ -79,6 +124,8 @@ public class VertxSwaggerReader {
         io.swagger.v3.oas.annotations.tags.Tag[] apiTags = ReflectionUtils.getRepeatableAnnotationsArray(cls, io.swagger.v3.oas.annotations.tags.Tag.class);
         io.swagger.v3.oas.annotations.servers.Server[] apiServers = ReflectionUtils.getRepeatableAnnotationsArray(cls, io.swagger.v3.oas.annotations.servers.Server.class);
         io.swagger.v3.oas.annotations.responses.ApiResponse[] apiResponses = ReflectionUtils.getRepeatableAnnotationsArray(cls, io.swagger.v3.oas.annotations.responses.ApiResponse.class);
+        List<io.swagger.v3.oas.annotations.security.SecurityScheme> apiSecurityScheme = ReflectionUtils.getRepeatableAnnotations(cls, io.swagger.v3.oas.annotations.security.SecurityScheme.class);
+        List<io.swagger.v3.oas.annotations.security.SecurityRequirement> apiSecurityRequirements = ReflectionUtils.getRepeatableAnnotations(cls, io.swagger.v3.oas.annotations.security.SecurityRequirement.class);
 
         // 处理类上的servers
         final List<Server> classServers = new ArrayList<>();
@@ -97,6 +144,34 @@ public class VertxSwaggerReader {
         for (String classTag : classTags) {
             openAPI.addTagsItem(new Tag().name(classTag).description(null));
         }
+        // 处理类上的security
+        if (apiSecurityScheme != null) {
+            Components components = openAPI.getComponents();
+            for (io.swagger.v3.oas.annotations.security.SecurityScheme securitySchemeAnnotation : apiSecurityScheme) {
+                Optional<SecurityParser.SecuritySchemePair> securityScheme = SecurityParser.getSecurityScheme(securitySchemeAnnotation);
+                if (securityScheme.isPresent()) {
+                    Map<String, SecurityScheme> securitySchemeMap = new HashMap<>();
+                    if (StringUtils.isNotBlank(securityScheme.get().key)) {
+                        securitySchemeMap.put(securityScheme.get().key, securityScheme.get().securityScheme);
+                        if (components.getSecuritySchemes() != null && components.getSecuritySchemes().size() != 0) {
+                            components.getSecuritySchemes().putAll(securitySchemeMap);
+                        } else {
+                            components.setSecuritySchemes(securitySchemeMap);
+                        }
+                    }
+                }
+            }
+        }
+        List<SecurityRequirement> classSecurityRequirements = new ArrayList<>();
+        if (apiSecurityRequirements != null) {
+            Optional<List<SecurityRequirement>> requirementsObject = SecurityParser.getSecurityRequirements(
+                apiSecurityRequirements.toArray(new io.swagger.v3.oas.annotations.security.SecurityRequirement[0])
+            );
+            if (requirementsObject.isPresent()) {
+                classSecurityRequirements = requirementsObject.get();
+            }
+        }
+
         // 处理类上的responses
         final List<io.swagger.v3.oas.annotations.responses.ApiResponse> classResponses = new ArrayList<>();
         if (apiResponses != null) {
@@ -109,19 +184,16 @@ public class VertxSwaggerReader {
             }
             for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
                 for (String methodPath : methodDescriptor.getPaths()) {
-                    for (String classPath : classPaths) {
-                        String operationPath = getPath(classPath, methodPath);
-                        if (operationPath == null) {
-                            continue;
-                        }
-                        Operation operation = parseOperation(methodDescriptor, classServers, classTags, classResponses);
-                        if (operation == null) {
-                            continue;
-                        }
-                        String path = convertPath(operationPath);
-                        PathItem pathItem = openAPI.getPaths().computeIfAbsent(path, k -> new PathItem());
-                        fillPathItemWithOperation(pathItem, httpMethod, operation);
+                    // methodPath已经包含了类上的路径，因此不再需要去除classPaths
+                    if (methodPath == null) {
+                        continue;
                     }
+                    Operation operation = parseOperation(methodDescriptor, classServers, classTags, classSecurityRequirements, classResponses);
+                    if (operation == null) {
+                        continue;
+                    }
+                    PathItem pathItem = openAPI.getPaths().computeIfAbsent(methodPath, k -> new PathItem());
+                    fillPathItemWithOperation(pathItem, httpMethod, operation);
                 }
             }
         }
@@ -168,6 +240,7 @@ public class VertxSwaggerReader {
      */
     protected Operation parseOperation(
         MethodDescriptor methodDescriptor, List<Server> classServers, Set<String> classTags,
+        List<SecurityRequirement> classSecurityRequirements,
         List<io.swagger.v3.oas.annotations.responses.ApiResponse> classResponses
     ) {
         BaseMethod baseMethod = methodDescriptor.getBaseMethod();
@@ -179,14 +252,26 @@ public class VertxSwaggerReader {
         List<io.swagger.v3.oas.annotations.tags.Tag> apiTags = ReflectionUtils.getRepeatableAnnotations(method, io.swagger.v3.oas.annotations.tags.Tag.class);
         List<io.swagger.v3.oas.annotations.responses.ApiResponse> apiResponses = ReflectionUtils.getRepeatableAnnotations(method, io.swagger.v3.oas.annotations.responses.ApiResponse.class);
         ExternalDocumentation apiExternalDocumentation = ReflectionUtils.getAnnotation(method, ExternalDocumentation.class);
+        List<io.swagger.v3.oas.annotations.security.SecurityRequirement> apiSecurity = ReflectionUtils.getRepeatableAnnotations(method, io.swagger.v3.oas.annotations.security.SecurityRequirement.class);
 
         // TODO 待加入callback：io.swagger.v3.jaxrs2.Reader.getCallbacks
-        // TODO 待加入security
+        classSecurityRequirements.forEach(operation::addSecurityItem);
+        if (apiSecurity != null) {
+            Optional<List<SecurityRequirement>> requirementsObject = SecurityParser.getSecurityRequirements(apiSecurity.toArray(new io.swagger.v3.oas.annotations.security.SecurityRequirement[0]));
+            requirementsObject.ifPresent(
+                securityRequirements -> securityRequirements.stream()
+                    .filter(r -> operation.getSecurity() == null || !operation.getSecurity().contains(r))
+                    .forEach(operation::addSecurityItem));
+        }
 
         // TODO 原生Operation暂只支持描述信息的设置
         if (apiOperation != null) {
             operation.setSummary(apiOperation.summary());
             operation.setDescription(apiOperation.description());
+        } else {
+            String methodSummary = StringUtils.join(StringUtils.splitByCharacterTypeCamelCase(method.getName()));
+            operation.setSummary(methodSummary);
+            operation.setDescription(methodSummary);
         }
 
         // operationId
@@ -240,34 +325,54 @@ public class VertxSwaggerReader {
         // TODO 待加入对swagger的Parameter注解的支持
         List<Parameter> parameters = new ArrayList<>();
         for (java.lang.reflect.Parameter parameter : methodDescriptor.getBaseMethod().getParameters()) {
-            Schema<?> schema = getSchema(parameter.getType());
+            // 目前允许结果放在Promise或Future中，因此忽略参数中的Promise
+            if (parameter.getType().equals(Promise.class)) {
+                continue;
+            }
+            // method为GET时，RequestBody从query中获取数据
+            RequestBody requestBody = parameter.getAnnotation(RequestBody.class);
+            if (requestBody != null && Arrays.equals(methodDescriptor.getHttpMethods(), new HttpMethod[]{HttpMethod.GET})) {
+                for (Field pField : parameter.getType().getDeclaredFields()) {
+                    Schema<?> pSchema = getSchema(pField.getGenericType());
+                    fillSchemaWithValidation(pSchema, pField);
+                    parameters.add(new QueryParameter()
+                        .name(pField.getName())
+                        .schema(pSchema));
+                }
+            }
             RequestHeader requestHeader = parameter.getAnnotation(RequestHeader.class);
             if (requestHeader != null) {
+                String pName = StringUtils.firstNonBlank(requestHeader.value(), parameter.getName());
                 parameters.add(new HeaderParameter()
-                    .name(requestHeader.value())
-                    .schema(schema)
+                    .name(pName)
+                    .schema(getSchema(parameter.getParameterizedType()))
                     .required(requestHeader.required()));
             }
             RequestParam requestParam = parameter.getAnnotation(RequestParam.class);
             if (requestParam != null) {
+                String pName = StringUtils.firstNonBlank(requestParam.value(), parameter.getName());
                 parameters.add(new QueryParameter()
-                    .name(requestParam.value())
-                    .schema(schema)
+                    .name(pName)
+                    .schema(getSchema(parameter.getParameterizedType()))
                     .required(requestParam.required()));
             }
             PathVariable pathVariable = parameter.getAnnotation(PathVariable.class);
             if (pathVariable != null) {
+                String pName = StringUtils.firstNonBlank(pathVariable.value(), parameter.getName());
                 parameters.add(new PathParameter()
-                    .name(pathVariable.value())
-                    .schema(schema)
+                    .name(pName)
+                    .schema(getSchema(parameter.getParameterizedType()))
                     .required(pathVariable.required()));
             }
-            fillSchemaWithValidation(schema, parameter);
         }
         return parameters;
     }
 
     protected io.swagger.v3.oas.models.parameters.RequestBody parseRequestBody(MethodDescriptor methodDescriptor) {
+        // 如果是GET，则忽略RequestBody注解
+        if (Arrays.equals(methodDescriptor.getHttpMethods(), new HttpMethod[]{HttpMethod.GET})) {
+            return null;
+        }
         BaseMethod baseMethod = methodDescriptor.getBaseMethod();
         List<java.lang.reflect.Parameter> parametersAnnotatedWithRequestBody = Arrays
             .stream(baseMethod.getParameters())
@@ -285,7 +390,7 @@ public class VertxSwaggerReader {
         Schema<?> schema = null;
         RequestBody requestBodyAnnotation = parameterAnnotatedWithRequestBody.getAnnotation(RequestBody.class);
         if (requestBodyAnnotation != null) {
-            schema = getSchema(parameterAnnotatedWithRequestBody.getType());
+            schema = getSchema(parameterAnnotatedWithRequestBody.getParameterizedType());
         }
 
         io.swagger.v3.oas.models.parameters.RequestBody requestBody = new io.swagger.v3.oas.models.parameters.RequestBody();
@@ -308,28 +413,22 @@ public class VertxSwaggerReader {
         ApiResponses apiResponsesObject = new ApiResponses();
 
         BaseMethod baseMethod = methodDescriptor.getBaseMethod();
-        // 方法返回值
-        Type returnActualType = baseMethod.getActualType();
-        Schema<?> schema;
-        if (returnActualType instanceof ParameterizedType) {
-            ResolvedSchema resolvedSchema = ModelConverters.getInstance().resolveAsResolvedSchema(
-                new AnnotatedType(returnActualType));
-            schema = resolvedSchema.schema;
-        } else if (returnActualType instanceof Class) {
-            schema = getSchema((Class<?>) returnActualType);
-        } else {
-            throw new RuntimeException("未预期的返回值类型");
-        }
+
+        // 返回的具体类型，已在baseMethod中提取出来，无论是Promise参数还是Future，因此这里就不用管了。
+        Schema<?> schema = getSchema(baseMethod.getActualType());
+
         MediaType methodReturnMediaType = new MediaType().schema(schema);
         ApiResponse methodResponse = new ApiResponse();
-        // TODO 处理更多种返回类型
-        final String mediaType;
-        if (TypeUtil.getClass(baseMethod.getActualType()).equals(String.class)) {
-            mediaType = "text/plain";
-        } else {
-            mediaType = "application/json";
+        if (schema != null) {
+            // TODO 处理更多种返回类型
+            final String mediaType;
+            if (TypeUtil.getClass(baseMethod.getActualType()).equals(String.class)) {
+                mediaType = "text/plain";
+            } else {
+                mediaType = "application/json";
+            }
+            methodResponse.setContent(new Content().addMediaType(mediaType, methodReturnMediaType));
         }
-        methodResponse.setContent(new Content().addMediaType(mediaType, methodReturnMediaType));
         apiResponsesObject.addApiResponse("200", methodResponse);
 
         // 额外的注解
@@ -368,82 +467,16 @@ public class VertxSwaggerReader {
         return apiResponsesObject;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private Schema getSchema(Class<?> type) {
-        Class<?> wrapType = BasicType.wrap(type);
-        Schema schema;
-        if (Number.class.isAssignableFrom(wrapType)) {
-            schema = new NumberSchema();
-        } else if (CharSequence.class.isAssignableFrom(wrapType)) {
-            schema = new StringSchema();
-        } else if (wrapType.isEnum()) {
-            List<String> names = EnumUtil.getNames((Class<? extends Enum<?>>) wrapType);
-            schema = new StringSchema();
-            schema.setEnum(names);
-        } else if (wrapType.isArray()) {
-            Class<?> componentType = wrapType.getComponentType();
-            schema = new ArraySchema().items(getSchema(componentType));
-        } else if (wrapType == List.class) {
-            Type[] actualTypeArguments = ((ParameterizedType) wrapType.getGenericSuperclass()).getActualTypeArguments();
-            if (actualTypeArguments.length > 0) {
-                Type actualType = actualTypeArguments[0];
-                schema = new ArraySchema().items(getSchema(actualType.getClass()));
-            } else {
-                schema = new ArraySchema();
-            }
-        } else {
-            schema = new ObjectSchema();
-            Field[] fields = wrapType.getDeclaredFields();
-            for (Field field : fields) {
-                Schema<?> fieldSchema = getSchema(field.getType());
-                schema.addProperties(field.getName(), fieldSchema);
-                if (field.getAnnotation(NotNull.class) != null) {
-                    schema.addRequiredItem(field.getName());
-                }
-                fillSchemaWithValidation(fieldSchema, field);
-            }
-        }
-        return schema;
-    }
+    @SuppressWarnings({"rawtypes"})
+    private Schema getSchema(Type type) {
+        final Schema schema;
 
-    protected void fillSchemaWithValidation(Schema<?> schema, AnnotatedElement element) {
-        NotNull notNull = element.getAnnotation(NotNull.class);
-        schema.nullable(notNull == null);
-        Pattern pattern = element.getAnnotation(Pattern.class);
-        if (pattern != null) {
-            schema.pattern(pattern.regexp());
-        }
-        Size size = element.getAnnotation(Size.class);
-        if (size != null) {
-            schema.minLength(size.min());
-            schema.maxLength(size.max());
-        }
-        Min min = element.getAnnotation(Min.class);
-        if (min != null) {
-            schema.minimum(BigDecimal.valueOf(min.value()));
-        }
-        Max max = element.getAnnotation(Max.class);
-        if (max != null) {
-            schema.maximum(BigDecimal.valueOf(max.value()));
-        }
-        DecimalMin decimalMin = element.getAnnotation(DecimalMin.class);
-        if (decimalMin != null) {
-            schema.minimum(BigDecimal.valueOf(Long.parseLong(decimalMin.value())));
-        }
-        DecimalMax decimalMax = element.getAnnotation(DecimalMax.class);
-        if (decimalMax != null) {
-            schema.maximum(BigDecimal.valueOf(Long.parseLong(decimalMax.value())));
-        }
-        NotBlank notBlank = element.getAnnotation(NotBlank.class);
-        NotEmpty notEmpty = element.getAnnotation(NotEmpty.class);
-        if (notBlank != null || notEmpty != null) {
-            schema.nullable(false);
-            schema.minLength(1);
-        }
-        Email email = element.getAnnotation(Email.class);
-        if (email != null) {
-            schema.format("email");
-        }
+        // ModelConverter逻辑过于复杂，考虑自己写一个符合自己的
+        ResolvedSchema resolvedSchema = ModelConverters.getInstance().resolveAsResolvedSchema(new AnnotatedType(type));
+        schema = resolvedSchema.schema;
+        resolvedSchema.referencedSchemas.forEach((key, item) -> openAPI.getComponents().addSchemas(key, item));
+
+        return schema;
     }
 
     protected String getPath(String classPath, String methodPath) {
@@ -515,20 +548,49 @@ public class VertxSwaggerReader {
         }
     }
 
-    /**
-     * /:id => /{id}
-     *
-     * @param path 路径
-     * @return 转换之后的路径
-     */
-    private String convertPath(String path) {
-        String[] split = path.split("/");
-        return Arrays.stream(split).map(s -> {
-            if (s.startsWith(":")) {
-                return "{" + s.substring(1) + "}";
-            } else {
-                return s;
-            }
-        }).collect(Collectors.joining("/"));
+    protected void fillSchemaWithValidation(Schema<?> schema, AnnotatedElement element) {
+        if (schema == null) {
+            return;
+        }
+        NotNull notNull = element.getAnnotation(NotNull.class);
+        if (notNull != null) {
+            schema.setNullable(true);
+        }
+        Pattern pattern = element.getAnnotation(Pattern.class);
+        if (pattern != null) {
+            schema.pattern(pattern.regexp());
+        }
+        Size size = element.getAnnotation(Size.class);
+        if (size != null) {
+            schema.minLength(size.min());
+            schema.maxLength(size.max());
+        }
+        Min min = element.getAnnotation(Min.class);
+        if (min != null) {
+            schema.minimum(BigDecimal.valueOf(min.value()));
+        }
+        Max max = element.getAnnotation(Max.class);
+        if (max != null) {
+            schema.maximum(BigDecimal.valueOf(max.value()));
+        }
+        DecimalMin decimalMin = element.getAnnotation(DecimalMin.class);
+        if (decimalMin != null) {
+            schema.minimum(BigDecimal.valueOf(Long.parseLong(decimalMin.value())));
+        }
+        DecimalMax decimalMax = element.getAnnotation(DecimalMax.class);
+        if (decimalMax != null) {
+            schema.maximum(BigDecimal.valueOf(Long.parseLong(decimalMax.value())));
+        }
+        NotBlank notBlank = element.getAnnotation(NotBlank.class);
+        NotEmpty notEmpty = element.getAnnotation(NotEmpty.class);
+        if (notBlank != null || notEmpty != null) {
+            schema.nullable(false);
+            schema.minLength(1);
+        }
+        Email email = element.getAnnotation(Email.class);
+        if (email != null) {
+            schema.format("email");
+        }
     }
+
 }

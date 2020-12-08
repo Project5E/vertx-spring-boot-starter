@@ -1,7 +1,10 @@
 package com.project5e.vertx.sample.router;
 
 import com.project5e.vertx.sample.router.dto.Query;
+import com.project5e.vertx.sample.router.dto.SearchParam;
+import com.project5e.vertx.swagger.annotation.SwaggerPage;
 import com.project5e.vertx.web.annotation.GetMapping;
+import com.project5e.vertx.web.annotation.RequestBody;
 import com.project5e.vertx.web.annotation.RequestMapping;
 import com.project5e.vertx.web.annotation.Router;
 import com.project5e.vertx.web.component.ResponseEntity;
@@ -14,11 +17,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Router
 @RequestMapping("/error")
+@SwaggerPage("第一页")
 @Tag(name = "error")
 public class ErrorRouter {
 
     @GetMapping("/err1")
-    public void err1(Promise<ResponseEntity<String>> promise) {
+    public void err1(@RequestBody SearchParam query, Promise<ResponseEntity<String>> promise) {
         promise.complete(ResponseEntity.completeWithPlainText("hhh"));
     }
 
