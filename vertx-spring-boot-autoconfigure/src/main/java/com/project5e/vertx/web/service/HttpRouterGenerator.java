@@ -41,10 +41,13 @@ import org.springframework.validation.annotation.Validated;
 import javax.validation.*;
 import javax.validation.executable.ExecutableValidator;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -53,6 +56,8 @@ public class HttpRouterGenerator implements ApplicationContextAware {
     private ApplicationContext applicationContext;
 
     private static final String OPERATION_RESULT_KEY = "operationResult";
+
+    public static final Pattern PATH_PARAMETERS_PATTERN = Pattern.compile("\\{[.;?*+]*([^{}.;?*+]+)[^}]*}");
 
     private final Vertx vertx;
     private final ProcessResult processResult;
@@ -99,7 +104,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
             for (MethodDescriptor methodDescriptor : routerDescriptor.getMethodDescriptors()) {
                 for (HttpMethod httpMethod : methodDescriptor.getHttpMethods()) {
                     for (String path : methodDescriptor.getPaths()) {
-                        Route route = router.route(io.vertx.core.http.HttpMethod.valueOf(httpMethod.name()), fixPath(path));
+                        Route route = generateRoute(router, path, httpMethod);
                         Handler<RoutingContext> businessHandler = ctx -> {
                             try {
                                 handleRequest(methodDescriptor, ctx);
@@ -153,7 +158,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
 
     @SneakyThrows
     private void dealError(RoutingContext ctx, Throwable e) {
-        if(e instanceof InvocationTargetException){
+        if (e instanceof InvocationTargetException) {
             InvocationTargetException invocationException = (InvocationTargetException) e;
             e = invocationException.getTargetException();
         }
@@ -286,7 +291,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
                 if (type == JsonObject.class) {
                     objects[i] = json;
                 } else {
-                    objects[i] = json.mapTo(type);
+                    objects[i] = mapJsonToObject(json, type);
                 }
             }
         }
@@ -305,6 +310,64 @@ public class HttpRouterGenerator implements ApplicationContextAware {
             }
         }
         return object;
+    }
+
+    /**
+     * 需要面临的问题：
+     * 1. 字符串转列表
+     * 2. 属性名与字段名的细微差别
+     * 3. 用户可能需要对字段做一些微调
+     *
+     * @param json 传入的json
+     * @param type 接收参数的类类型
+     * @return 响应从json中解析后的类型实例
+     */
+    private Object mapJsonToObject(JsonObject json, Class<?> type) {
+        // 用户实现了IRequestBodyModel以实现对数据的微调
+        JsonObject newJson = null;
+        if (Arrays.asList(type.getInterfaces()).contains(IRequestBodyModel.class)) {
+            try {
+                Method formatJsonMethod = type.getDeclaredMethod("formatJson", JsonObject.class);
+                newJson = (JsonObject) formatJsonMethod.invoke(type.newInstance(), json);
+            } catch (Exception ignored) {
+            }
+        }
+        if (newJson == null) {
+            newJson = json.copy();
+        }
+        // 字段名转换为驼峰命名
+        Map<String, Object> newMap = new HashMap<>();
+        newJson.stream().forEachOrdered(entry -> {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+
+            String[] keySegments = key.split("-");
+            if (keySegments.length > 1) {
+                for (int i = 1; i < keySegments.length; i++) {
+                    keySegments[i] = StringUtils.capitalize(keySegments[i]);
+                }
+            }
+            String newKey = StringUtils.join(keySegments);
+            newMap.put(newKey, value);
+        });
+        newJson = JsonObject.mapFrom(newMap);
+        // 字符串转列表
+        for (Field field : type.getDeclaredFields()) {
+            String fieldName = field.getName();
+            Class<?> fieldType = field.getType();
+            Object candidateObject = newJson.getValue(fieldName);
+            if (List.class.equals(fieldType) && candidateObject instanceof String) {
+                newJson.put(fieldName, ((String) candidateObject).split(","));
+            }
+        }
+        // 移除多余字段
+        Set<String> legalFields = Arrays.stream(type.getDeclaredFields()).map(Field::getName).collect(Collectors.toSet());
+        Collection<String> extraFields = CollectionUtils.subtract(newJson.fieldNames(), legalFields);
+        for (String fieldName : extraFields) {
+            newJson.remove(fieldName);
+        }
+        // 最后直接转换
+        return newJson.mapTo(type);
     }
 
     private void dealRequestParam(RoutingContext ctx, Object[] objects, int i, Parameter parameter, Class<?> type) {
@@ -334,7 +397,7 @@ public class HttpRouterGenerator implements ApplicationContextAware {
         }
     }
 
-    private Enum<?> enumConvert(Class<?> type, String param){
+    private Enum<?> enumConvert(Class<?> type, String param) {
         Enum<?> resEnum = null;
         for (Object enumConsObj : type.getEnumConstants()) {
             Enum<?> enumCons = (Enum<?>) enumConsObj;
@@ -451,8 +514,24 @@ public class HttpRouterGenerator implements ApplicationContextAware {
         };
     }
 
-    private String fixPath(String path) {
-        return path.replaceAll("\\{", ":").replaceAll("}", "");
+    private Route generateRoute(Router router, String path, HttpMethod method) {
+        io.vertx.core.http.HttpMethod vertxMethod = io.vertx.core.http.HttpMethod.valueOf(method.name());
+
+        Matcher pathMather = PATH_PARAMETERS_PATTERN.matcher(path);
+
+        List<String> groupNames = new ArrayList<>();
+        while (pathMather.find()) {
+            String groupName = pathMather.group();
+            groupNames.add(groupName.substring(1, groupName.length() - 1));
+        }
+
+        String finalPath = pathMather.replaceAll("([^/]+)");
+
+        if (!groupNames.isEmpty()) {
+            return router.routeWithRegex(vertxMethod, finalPath).setRegexGroupsNames(groupNames);
+        } else {
+            return router.route(vertxMethod, finalPath);
+        }
     }
 
 }

@@ -17,6 +17,7 @@ import org.springframework.context.ApplicationContextAware;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  * @author leo
@@ -77,6 +78,9 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
                         methodDescriptor.setMethod(method);
                         routerDescriptor.addMethodDescriptor(methodDescriptor);
                     }
+
+                    // 整理routerDescriptor中的methodDescriptors的顺序，带路径参数的往后排
+                    resortMethodDescriptors(routerDescriptor);
                 }
             }
 
@@ -141,5 +145,8 @@ public class WebAnnotationProcessor implements ApplicationContextAware {
         return path;
     }
 
+    private static void resortMethodDescriptors(RouterDescriptor routerDescriptor) {
+        routerDescriptor.getMethodDescriptors().sort(Comparator.comparing(o -> o.getPaths()[0]));
+    }
 
 }
