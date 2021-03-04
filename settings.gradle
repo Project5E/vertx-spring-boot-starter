@@ -8,3 +8,5 @@ include ':vertx-serviceproxy-spring-boot-starter'
 include ':vertx-web-spring-boot-starter'
 include ':vertx-web-swagger-spring-boot-starter'
 include ':vertx-pgclient-spring-boot-starter'
+include 'vertx-redis-spring-boot-starter'
+

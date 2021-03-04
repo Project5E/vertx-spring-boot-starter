@@ -7,3 +7,4 @@ bootJar {
 jar {
     enabled = true
 }
+description = "vertx Spring Boot AutoConfigure"
